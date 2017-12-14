@@ -34,7 +34,7 @@ implementation {
       // printf("From %u", temperaturePacket->nodeid);
       if (packet->nodeid) {
         call Leds.led2Toggle();
-        printf("temperature: %u\n", (nx_uint16_t)(-40.1 + 0.01 * packet->temperature));
+        printf("temperature: %u, humidity: %u, illumination: %u\n", packet->temperature, packet->humidity, packet->illumination);
         printfflush();
       }
     }

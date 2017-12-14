@@ -9,7 +9,8 @@ enum {
 typedef nx_struct DirectCollectorMsg {
   nx_uint16_t nodeid;
   nx_uint16_t temperature;
-  nx_uint16_t
+  nx_uint16_t humidity;
+  nx_uint16_t illumination;
 } DirectCollectorMsg;
 
 #endif
