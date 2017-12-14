@@ -1,0 +1,2 @@
+COMPONENT=DirectCollectorAppC
+include $(MAKERULES)
