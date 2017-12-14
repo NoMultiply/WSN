@@ -10,7 +10,7 @@ implementation {
   components PrintfC;
   components SerialStartC;
   components ReceiverC as App;
-  components new AMReceiverC(AM_BLINKTORADIO);
+  components new AMReceiverC(AM_WSN_DIRECT_COLLECTOR);
   components ActiveMessageC;
 
   App.Boot -> MainC;

@@ -31,12 +31,9 @@ implementation {
   event message_t* Receive.receive(message_t* msg, void* payload, uint8_t len){
     if (len == sizeof(CollectorMsg)) {
       CollectorMsg* packet = (CollectorMsg*)payload;
-      // printf("From %u", temperaturePacket->nodeid);
-      if (packet->nodeid) {
-        call Leds.led2Toggle();
-        printf("temperature: %u, humidity: %u, illumination: %u\n", packet->temperature, packet->humidity, packet->illumination);
-        printfflush();
-      }
+      call Leds.led2Toggle();
+      printf("nodeid: %u, temperature: %u, humidity: %u, illumination: %u\n", packet->nodeid, packet->temperature, packet->humidity, packet->illumination);
+      printfflush();
     }
     return msg;
   }

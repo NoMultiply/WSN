@@ -2,7 +2,7 @@
 #define RECEIVER_H
 
 enum {
-  AM_BLINKTORADIO = 6,
+  AM_WSN_DIRECT_COLLECTOR = 0xcf,
   TIMER_PERIOD_MILLI = 1000
 };
 

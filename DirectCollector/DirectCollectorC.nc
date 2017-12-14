@@ -8,6 +8,7 @@ module DirectCollectorC {
   uses interface Packet;
   uses interface AMPacket;
   uses interface AMSend;
+  uses interface Receive;
   uses interface SplitControl as AMControl;
   uses interface Read<uint16_t> as ReadTemperature;
   uses interface Read<uint16_t> as ReadHumidity;
@@ -16,6 +17,8 @@ module DirectCollectorC {
 implementation {
 
   message_t pkt;
+  message_t rpkt;
+  DirectCollectorMsg * msgrPkt;
   DirectCollectorMsg msgPkt;
   bool temperatureBusy = FALSE;
   bool humidityBusy = FALSE;
@@ -37,6 +40,21 @@ implementation {
         humidityBusy = FALSE;
         illuminationBusy = FALSE;
       }
+    }
+  }
+
+  task void SendReceive() {
+    DirectCollectorMsg* collectPacket = (DirectCollectorMsg*)(call Packet.getPayload(&rpkt, sizeof(DirectCollectorMsg)));
+    if (collectPacket == NULL) {
+      return;
+    }
+    call Leds.led2Toggle();
+    collectPacket->nodeid = msgrPkt->nodeid;
+    collectPacket->temperature = msgrPkt->temperature;
+    collectPacket->humidity = msgrPkt->humidity;
+    collectPacket->illumination = msgrPkt->illumination;
+    if (!(call AMSend.send(AM_BROADCAST_ADDR, &rpkt, sizeof(DirectCollectorMsg)) == SUCCESS)) {
+
     }
   }
 
@@ -102,5 +120,14 @@ implementation {
       humidityBusy = FALSE;
       illuminationBusy = FALSE;
     }
+  }
+
+  event message_t* Receive.receive(message_t* msg, void* payload, uint8_t len){
+    if (len == sizeof(DirectCollectorMsg)) {
+      msgrPkt = (DirectCollectorMsg*)payload;
+      call Leds.led1Toggle();
+      post SendReceive();
+    }
+    return msg;
   }
 }

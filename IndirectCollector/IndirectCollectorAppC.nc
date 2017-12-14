@@ -9,8 +9,9 @@ implementation {
   components IndirectCollectorC as App;
   components new TimerMilliC() as Timer0;
   components ActiveMessageC;
-  components new AMSenderC(AM_BLINKTORADIO);
+  components new AMSenderC(AM_WSN_INDIRECT_COLLECTOR);
   components new SensirionSht11C() as Sensor;
+  components new HamamatsuS1087ParC() as IlluminationSensor;
 
   App.Boot -> MainC;
   App.Leds -> LedsC;
@@ -19,5 +20,7 @@ implementation {
   App.AMPacket -> AMSenderC;
   App.AMControl -> ActiveMessageC;
   App.AMSend -> AMSenderC;
-  App.Read -> Sensor.Temperature;
+  App.ReadTemperature -> Sensor.Temperature;
+  App.ReadHumidity -> Sensor.Humidity;
+  App.ReadIllumination -> IlluminationSensor;
 }
