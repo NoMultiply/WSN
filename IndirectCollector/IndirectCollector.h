@@ -11,6 +11,12 @@ typedef nx_struct IndirectCollectorMsg {
   nx_uint16_t temperature;
   nx_uint16_t humidity;
   nx_uint16_t illumination;
+  nx_uint16_t timestamp;
+  nx_uint16_t sequence_num;
 } IndirectCollectorMsg;
 
+typedef nx_struct nxSYS_Time_t {
+    nx_uint32_t uiSeconds;//转换的秒数
+    nx_uint16_t usTicks;//滴答计数变量
+} nxSYS_Time_t;
 #endif

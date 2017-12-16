@@ -23,7 +23,8 @@ implementation {
   bool temperatureBusy = FALSE;
   bool humidityBusy = FALSE;
   bool illuminationBusy = FALSE;
-
+  uint16_t count = 0;
+  uint16_t timestamp = 0;
   void SendPacket() {
     if (temperatureBusy && humidityBusy && illuminationBusy) {
       DirectCollectorMsg* collectPacket = (DirectCollectorMsg*)(call Packet.getPayload(&pkt, sizeof(DirectCollectorMsg)));
@@ -35,6 +36,8 @@ implementation {
       collectPacket->temperature = msgPkt.temperature;
       collectPacket->humidity = msgPkt.humidity;
       collectPacket->illumination = msgPkt.illumination;
+      collectPacket->sequence_num = count;
+      collectPacket->timestamp = timestamp * TIMER_PERIOD_MILLI;
       if (!(call AMSend.send(AM_BROADCAST_ADDR, &pkt, sizeof(DirectCollectorMsg)) == SUCCESS)) {
         temperatureBusy = FALSE;
         humidityBusy = FALSE;
@@ -53,8 +56,9 @@ implementation {
     collectPacket->temperature = msgrPkt->temperature;
     collectPacket->humidity = msgrPkt->humidity;
     collectPacket->illumination = msgrPkt->illumination;
+    collectPacket->sequence_num = msgrPkt->sequence_num;
+    collectPacket->timestamp = msgrPkt->timestamp;
     if (!(call AMSend.send(AM_BROADCAST_ADDR, &rpkt, sizeof(DirectCollectorMsg)) == SUCCESS)) {
-
     }
   }
 
@@ -112,6 +116,7 @@ implementation {
     call ReadTemperature.read();
     call ReadHumidity.read();
     call ReadIllumination.read();
+    timestamp++;
   }
 
   event void AMSend.sendDone(message_t* msg, error_t err) {
@@ -119,6 +124,7 @@ implementation {
       temperatureBusy = FALSE;
       humidityBusy = FALSE;
       illuminationBusy = FALSE;
+      count++;
     }
   }
 
