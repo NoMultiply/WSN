@@ -32,7 +32,7 @@ implementation {
     if (len == sizeof(CollectorMsg)) {
       CollectorMsg* packet = (CollectorMsg*)payload;
       call Leds.led2Toggle();
-      printf("sequence_num: %u, timestamp: %u ms, nodeid: %u, temperature: %u, humidity: %u, illumination: %u\n", packet->sequence_num, packet->timestamp, packet->nodeid, packet->temperature, packet->humidity, packet->illumination);
+      printf("sequence_num: %u, nodeid: %u, temperature: %u, humidity: %u, illumination: %u, timestamp: %lu \n", packet->sequence_num, packet->nodeid, packet->temperature, packet->humidity, packet->illumination, packet->timestamp);
       printfflush();
     }
      return msg;

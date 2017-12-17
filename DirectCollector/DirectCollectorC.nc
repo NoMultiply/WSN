@@ -1,5 +1,6 @@
 #include <Timer.h>
 #include "DirectCollector.h"
+#include "printf.h"
 
 module DirectCollectorC {
   uses interface Boot;
@@ -13,18 +14,19 @@ module DirectCollectorC {
   uses interface Read<uint16_t> as ReadTemperature;
   uses interface Read<uint16_t> as ReadHumidity;
   uses interface Read<uint16_t> as ReadIllumination;
+  uses interface Counter<T32khz,uint16_t> as Msp430Counter32khz;
 }
-implementation {
 
+implementation {
   message_t pkt;
   message_t rpkt;
+  nxSYS_Time_t SysClock = { 0, 0 };
   DirectCollectorMsg * msgrPkt;
   DirectCollectorMsg msgPkt;
   bool temperatureBusy = FALSE;
   bool humidityBusy = FALSE;
   bool illuminationBusy = FALSE;
   uint16_t count = 0;
-  uint16_t timestamp = 0;
   void SendPacket() {
     if (temperatureBusy && humidityBusy && illuminationBusy) {
       DirectCollectorMsg* collectPacket = (DirectCollectorMsg*)(call Packet.getPayload(&pkt, sizeof(DirectCollectorMsg)));
@@ -37,7 +39,9 @@ implementation {
       collectPacket->humidity = msgPkt.humidity;
       collectPacket->illumination = msgPkt.illumination;
       collectPacket->sequence_num = count;
-      collectPacket->timestamp = timestamp * TIMER_PERIOD_MILLI;
+      collectPacket->timestamp = SysClock.timestamp;
+      printf("%lu %u\n", SysClock.timestamp, count);
+      printfflush();
       if (!(call AMSend.send(AM_BROADCAST_ADDR, &pkt, sizeof(DirectCollectorMsg)) == SUCCESS)) {
         temperatureBusy = FALSE;
         humidityBusy = FALSE;
@@ -78,6 +82,23 @@ implementation {
   event void AMControl.stopDone(error_t err) {
   }
 
+  void GetTime() {
+    uint16_t temp;
+    temp = call Msp430Counter32khz.get();
+    atomic {
+      SysClock.ticks = temp;
+      SysClock.timestamp = SysClock.ticks_round * 2048 + SysClock.ticks / 32;
+    }
+  }
+
+  async event void Msp430Counter32khz.overflow()
+  {
+    call Msp430Counter32khz.clearOverflow();
+    atomic {
+      SysClock.ticks_round += 1;
+    }
+  }
+
   event void ReadTemperature.readDone(error_t result, uint16_t data)
   {
     if (result == SUCCESS){
@@ -116,7 +137,7 @@ implementation {
     call ReadTemperature.read();
     call ReadHumidity.read();
     call ReadIllumination.read();
-    timestamp++;
+    GetTime();
   }
 
   event void AMSend.sendDone(message_t* msg, error_t err) {

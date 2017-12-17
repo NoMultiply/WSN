@@ -12,16 +12,17 @@ module IndirectCollectorC {
   uses interface Read<uint16_t> as ReadTemperature;
   uses interface Read<uint16_t> as ReadHumidity;
   uses interface Read<uint16_t> as ReadIllumination;
+  uses interface Counter<T32khz,uint16_t> as Msp430Counter32khz;
 }
 
 implementation {
   message_t pkt;
+  nxSYS_Time_t SysClock = { 0, 0 };
   IndirectCollectorMsg msgPkt;
   bool temperatureBusy = FALSE;
   bool humidityBusy = FALSE;
   bool illuminationBusy = FALSE;
   uint16_t count = 0;
-  uint16_t timestamp = 0;
   void SendPacket() {
     if (temperatureBusy && humidityBusy && illuminationBusy) {
       IndirectCollectorMsg* collectPacket = (IndirectCollectorMsg*)(call Packet.getPayload(&pkt, sizeof(IndirectCollectorMsg)));
@@ -34,7 +35,7 @@ implementation {
       collectPacket->humidity = msgPkt.humidity;
       collectPacket->illumination = msgPkt.illumination;
       collectPacket->sequence_num = count;
-      collectPacket->timestamp = timestamp * TIMER_PERIOD_MILLI;
+      collectPacket->timestamp = SysClock.timestamp;
       if (!(call AMSend.send(AM_BROADCAST_ADDR, &pkt, sizeof(IndirectCollectorMsg)) == SUCCESS)) {
         temperatureBusy = FALSE;
         humidityBusy = FALSE;
@@ -45,6 +46,23 @@ implementation {
 
   event void Boot.booted() {
     call AMControl.start();
+  }
+
+  void GetTime() {
+    uint16_t temp;
+    temp = call Msp430Counter32khz.get();
+    atomic {
+      SysClock.ticks = temp;
+      SysClock.timestamp = SysClock.ticks_round * 2048 + SysClock.ticks / 32;
+    }
+  }
+
+  async event void Msp430Counter32khz.overflow()
+  {
+    call Msp430Counter32khz.clearOverflow();
+    atomic {
+      SysClock.ticks_round += 1;
+    }
   }
 
   event void AMControl.startDone(error_t err) {
@@ -97,7 +115,7 @@ implementation {
     call ReadTemperature.read();
     call ReadHumidity.read();
     call ReadIllumination.read();
-    timestamp++;
+    GetTime();
   }
 
   event void AMSend.sendDone(message_t* msg, error_t err) {

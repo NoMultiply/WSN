@@ -12,7 +12,9 @@ implementation {
   components new AMSenderC(AM_WSN_INDIRECT_COLLECTOR);
   components new SensirionSht11C() as Sensor;
   components new HamamatsuS1087ParC() as IlluminationSensor;
+  components Msp430Counter32khzC;
 
+  App.Msp430Counter32khz -> Msp430Counter32khzC.Msp430Counter32khz;
   App.Boot -> MainC;
   App.Leds -> LedsC;
   App.Timer0 -> Timer0;
