@@ -15,13 +15,13 @@ module IndirectCollectorC {
 }
 
 implementation {
-
   message_t pkt;
   IndirectCollectorMsg msgPkt;
   bool temperatureBusy = FALSE;
   bool humidityBusy = FALSE;
   bool illuminationBusy = FALSE;
-
+  uint16_t count = 0;
+  uint16_t timestamp = 0;
   void SendPacket() {
     if (temperatureBusy && humidityBusy && illuminationBusy) {
       IndirectCollectorMsg* collectPacket = (IndirectCollectorMsg*)(call Packet.getPayload(&pkt, sizeof(IndirectCollectorMsg)));
@@ -33,6 +33,8 @@ implementation {
       collectPacket->temperature = msgPkt.temperature;
       collectPacket->humidity = msgPkt.humidity;
       collectPacket->illumination = msgPkt.illumination;
+      collectPacket->sequence_num = count;
+      collectPacket->timestamp = timestamp * TIMER_PERIOD_MILLI;
       if (!(call AMSend.send(AM_BROADCAST_ADDR, &pkt, sizeof(IndirectCollectorMsg)) == SUCCESS)) {
         temperatureBusy = FALSE;
         humidityBusy = FALSE;
@@ -95,6 +97,7 @@ implementation {
     call ReadTemperature.read();
     call ReadHumidity.read();
     call ReadIllumination.read();
+    timestamp++;
   }
 
   event void AMSend.sendDone(message_t* msg, error_t err) {
@@ -102,6 +105,7 @@ implementation {
       temperatureBusy = FALSE;
       humidityBusy = FALSE;
       illuminationBusy = FALSE;
+      count++;
     }
   }
 }

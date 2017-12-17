@@ -11,6 +11,9 @@ typedef nx_struct CollectorMsg {
   nx_uint16_t temperature;
   nx_uint16_t humidity;
   nx_uint16_t illumination;
+  nx_uint16_t timestamp;
+  nx_uint16_t sequence_num;
 } CollectorMsg;
+
 
 #endif
