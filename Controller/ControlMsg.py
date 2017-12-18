@@ -7,14 +7,14 @@
 import tinyos.message.Message
 
 # The default size of this message type in bytes.
-DEFAULT_MESSAGE_SIZE = 2
+DEFAULT_MESSAGE_SIZE = 3
 
 # The Active Message type associated with this message.
 AM_TYPE = 75
 
 class ControlMsg(tinyos.message.Message.Message):
-    # Create a new ControlMsg of size 2.
-    def __init__(self, data="", addr=None, gid=None, base_offset=0, data_length=2):
+    # Create a new ControlMsg of size 3.
+    def __init__(self, data="", addr=None, gid=None, base_offset=0, data_length=3):
         tinyos.message.Message.Message.__init__(self, data, addr, gid, base_offset, data_length)
         self.amTypeSet(AM_TYPE)
     
@@ -31,7 +31,11 @@ class ControlMsg(tinyos.message.Message.Message):
     def __str__(self):
         s = "Message <ControlMsg> \n"
         try:
-            s += "  [freq=0x%x]\n" % (self.get_freq())
+            s += "  [control_type=0x%x]\n" % (self.get_control_type())
+        except:
+            pass
+        try:
+            s += "  [interval=0x%x]\n" % (self.get_interval())
         except:
             pass
         return s
@@ -39,57 +43,112 @@ class ControlMsg(tinyos.message.Message.Message):
     # Message-type-specific access methods appear below.
 
     #
-    # Accessor methods for field: freq
-    #   Field type: int
+    # Accessor methods for field: control_type
+    #   Field type: short
     #   Offset (bits): 0
+    #   Size (bits): 8
+    #
+
+    #
+    # Return whether the field 'control_type' is signed (False).
+    #
+    def isSigned_control_type(self):
+        return False
+    
+    #
+    # Return whether the field 'control_type' is an array (False).
+    #
+    def isArray_control_type(self):
+        return False
+    
+    #
+    # Return the offset (in bytes) of the field 'control_type'
+    #
+    def offset_control_type(self):
+        return (0 / 8)
+    
+    #
+    # Return the offset (in bits) of the field 'control_type'
+    #
+    def offsetBits_control_type(self):
+        return 0
+    
+    #
+    # Return the value (as a short) of the field 'control_type'
+    #
+    def get_control_type(self):
+        return self.getUIntElement(self.offsetBits_control_type(), 8, 1)
+    
+    #
+    # Set the value of the field 'control_type'
+    #
+    def set_control_type(self, value):
+        self.setUIntElement(self.offsetBits_control_type(), 8, value, 1)
+    
+    #
+    # Return the size, in bytes, of the field 'control_type'
+    #
+    def size_control_type(self):
+        return (8 / 8)
+    
+    #
+    # Return the size, in bits, of the field 'control_type'
+    #
+    def sizeBits_control_type(self):
+        return 8
+    
+    #
+    # Accessor methods for field: interval
+    #   Field type: int
+    #   Offset (bits): 8
     #   Size (bits): 16
     #
 
     #
-    # Return whether the field 'freq' is signed (False).
+    # Return whether the field 'interval' is signed (False).
     #
-    def isSigned_freq(self):
+    def isSigned_interval(self):
         return False
     
     #
-    # Return whether the field 'freq' is an array (False).
+    # Return whether the field 'interval' is an array (False).
     #
-    def isArray_freq(self):
+    def isArray_interval(self):
         return False
     
     #
-    # Return the offset (in bytes) of the field 'freq'
+    # Return the offset (in bytes) of the field 'interval'
     #
-    def offset_freq(self):
-        return (0 / 8)
+    def offset_interval(self):
+        return (8 / 8)
     
     #
-    # Return the offset (in bits) of the field 'freq'
+    # Return the offset (in bits) of the field 'interval'
     #
-    def offsetBits_freq(self):
-        return 0
+    def offsetBits_interval(self):
+        return 8
     
     #
-    # Return the value (as a int) of the field 'freq'
+    # Return the value (as a int) of the field 'interval'
     #
-    def get_freq(self):
-        return self.getUIntElement(self.offsetBits_freq(), 16, 1)
+    def get_interval(self):
+        return self.getUIntElement(self.offsetBits_interval(), 16, 1)
     
     #
-    # Set the value of the field 'freq'
+    # Set the value of the field 'interval'
     #
-    def set_freq(self, value):
-        self.setUIntElement(self.offsetBits_freq(), 16, value, 1)
+    def set_interval(self, value):
+        self.setUIntElement(self.offsetBits_interval(), 16, value, 1)
     
     #
-    # Return the size, in bytes, of the field 'freq'
+    # Return the size, in bytes, of the field 'interval'
     #
-    def size_freq(self):
+    def size_interval(self):
         return (16 / 8)
     
     #
-    # Return the size, in bits, of the field 'freq'
+    # Return the size, in bits, of the field 'interval'
     #
-    def sizeBits_freq(self):
+    def sizeBits_interval(self):
         return 16
     

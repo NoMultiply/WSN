@@ -1,2 +1,5 @@
 build/
 .git/
+*.pyc
+__pycache__/
+.idea/

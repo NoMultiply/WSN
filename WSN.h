@@ -6,7 +6,9 @@ enum {
   AM_WSN_INDIRECT_COLLECTOR = 0xce,
   AM_DATAMSG = 0x1e,
   AM_CONTROLMSG = 0x4b,
-  TIMER_PERIOD_MILLI = 1000
+  TIMER_PERIOD_MILLI = 1000,
+  CONTROL_STOP = 1,
+  CONTROL_START = 2
 };
 
 typedef nx_struct DataMsg {
@@ -19,7 +21,8 @@ typedef nx_struct DataMsg {
 } DataMsg;
 
 typedef nx_struct ControlMsg {
-  nx_uint16_t freq;
+  nx_uint8_t control_type;
+  nx_uint16_t interval;
 } ControlMsg;
 
 typedef nx_struct nxSYS_Time_t {

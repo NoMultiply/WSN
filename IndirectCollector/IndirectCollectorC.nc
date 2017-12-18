@@ -130,9 +130,15 @@ implementation {
 
   event message_t* ControlReceive.receive(message_t* msg, void* payload, uint8_t len){
     if (len == sizeof(ControlMsg)) {
-      //call Leds.led0Toggle();
-    }
+      ControlMsg* controlPkt = (ControlMsg*)payload;
       call Leds.led0Toggle();
+      if (controlPkt->control_type == CONTROL_STOP) {
+        call Timer0.stop();
+      }
+      else {
+        call Timer0.startPeriodic(controlPkt->interval);
+      }
+    }
     return msg;
   }
 }
