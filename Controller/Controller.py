@@ -49,12 +49,19 @@ class ControllerGui(Ui_ControllerGUI, QMainWindow):
         box = QVBoxLayout(self.m_devices)
         box.addItem(QSpacerItem(40, 20, QSizePolicy.Maximum, QSizePolicy.Expanding))
         self.m_devices.setLayout(box)
+	self.file = open('result.txt', 'w')
 
     def closeEvent(self, event):
+	self.file.close()
         self.interface.mif.finishAll()
 
     def show_received(self, node_id, sequence_num, timestamp, temperature, humidity, illumination):
-        try:
+        result = "ID:" + str(node_id) + " SeqNo:" + str(sequence_num) + " temperature:" + str(temperature) + \
+              " humidity:" + str(humidity) + " illumination:" + str(illumination) + " time:" + str(timestamp) + "\n"
+        self.file.write(result)
+        print("ID:" + str(node_id) + " SeqNo:" + str(sequence_num))
+        
+	try:
             temperature_curve = self.temperature_curves[str(node_id)]
             humidity_curve = self.humidity_curves[str(node_id)]
             illumination_curve = self.illumination_curves[str(node_id)]
