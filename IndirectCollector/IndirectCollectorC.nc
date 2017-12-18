@@ -1,5 +1,5 @@
 #include <Timer.h>
-#include "IndirectCollector.h"
+#include "../WSN.h"
 
 module IndirectCollectorC {
   uses interface Boot;
@@ -7,7 +7,8 @@ module IndirectCollectorC {
   uses interface Timer<TMilli> as Timer0;
   uses interface Packet;
   uses interface AMPacket;
-  uses interface AMSend;
+  uses interface AMSend as DataSend;
+  uses interface Receive as ControlReceive;
   uses interface SplitControl as AMControl;
   uses interface Read<uint16_t> as ReadTemperature;
   uses interface Read<uint16_t> as ReadHumidity;
@@ -18,14 +19,14 @@ module IndirectCollectorC {
 implementation {
   message_t pkt;
   nxSYS_Time_t SysClock = { 0, 0 };
-  IndirectCollectorMsg msgPkt;
+  DataMsg msgPkt;
   bool temperatureBusy = FALSE;
   bool humidityBusy = FALSE;
   bool illuminationBusy = FALSE;
   uint16_t count = 0;
   void SendPacket() {
     if (temperatureBusy && humidityBusy && illuminationBusy) {
-      IndirectCollectorMsg* collectPacket = (IndirectCollectorMsg*)(call Packet.getPayload(&pkt, sizeof(IndirectCollectorMsg)));
+      DataMsg* collectPacket = (DataMsg*)(call Packet.getPayload(&pkt, sizeof(DataMsg)));
       if (collectPacket == NULL) {
         return;
       }
@@ -36,7 +37,7 @@ implementation {
       collectPacket->illumination = msgPkt.illumination;
       collectPacket->sequence_num = count;
       collectPacket->timestamp = SysClock.timestamp;
-      if (!(call AMSend.send(AM_BROADCAST_ADDR, &pkt, sizeof(IndirectCollectorMsg)) == SUCCESS)) {
+      if (!(call DataSend.send(AM_BROADCAST_ADDR, &pkt, sizeof(DataMsg)) == SUCCESS)) {
         temperatureBusy = FALSE;
         humidityBusy = FALSE;
         illuminationBusy = FALSE;
@@ -118,12 +119,20 @@ implementation {
     GetTime();
   }
 
-  event void AMSend.sendDone(message_t* msg, error_t err) {
+  event void DataSend.sendDone(message_t* msg, error_t err) {
     if (&pkt == msg) {
       temperatureBusy = FALSE;
       humidityBusy = FALSE;
       illuminationBusy = FALSE;
       count++;
     }
+  }
+
+  event message_t* ControlReceive.receive(message_t* msg, void* payload, uint8_t len){
+    if (len == sizeof(ControlMsg)) {
+      //call Leds.led0Toggle();
+    }
+      call Leds.led0Toggle();
+    return msg;
   }
 }

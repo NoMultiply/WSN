@@ -4,17 +4,23 @@
 enum {
   AM_WSN_DIRECT_COLLECTOR = 0xcf,
   AM_WSN_INDIRECT_COLLECTOR = 0xce,
+  AM_DATAMSG = 0x1e,
+  AM_CONTROLMSG = 0x4b,
   TIMER_PERIOD_MILLI = 1000
 };
 
-typedef nx_struct DirectCollectorMsg {
+typedef nx_struct DataMsg {
   nx_uint16_t nodeid;
   nx_uint16_t temperature;
   nx_uint16_t humidity;
   nx_uint16_t illumination;
   nx_uint32_t timestamp;
   nx_uint16_t sequence_num;
-} DirectCollectorMsg;
+} DataMsg;
+
+typedef nx_struct ControlMsg {
+  nx_uint16_t freq;
+} ControlMsg;
 
 typedef nx_struct nxSYS_Time_t {
     nx_uint32_t ticks_round;

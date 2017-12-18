@@ -1,5 +1,5 @@
 #include <Timer.h>
-#include "IndirectCollector.h"
+#include "../WSN.h"
 
 configuration IndirectCollectorAppC {
 }
@@ -9,7 +9,8 @@ implementation {
   components IndirectCollectorC as App;
   components new TimerMilliC() as Timer0;
   components ActiveMessageC;
-  components new AMSenderC(AM_WSN_INDIRECT_COLLECTOR);
+  components new AMSenderC(AM_WSN_INDIRECT_COLLECTOR) as DataSender;
+  components new AMReceiverC(AM_WSN_INDIRECT_COLLECTOR) as ControlReceiver;
   components new SensirionSht11C() as Sensor;
   components new HamamatsuS1087ParC() as IlluminationSensor;
   components Msp430Counter32khzC;
@@ -18,10 +19,11 @@ implementation {
   App.Boot -> MainC;
   App.Leds -> LedsC;
   App.Timer0 -> Timer0;
-  App.Packet -> AMSenderC;
-  App.AMPacket -> AMSenderC;
+  App.Packet -> DataSender;
+  App.AMPacket -> DataSender;
   App.AMControl -> ActiveMessageC;
-  App.AMSend -> AMSenderC;
+  App.DataSend -> DataSender;
+  App.ControlReceive -> ControlReceiver;
   App.ReadTemperature -> Sensor.Temperature;
   App.ReadHumidity -> Sensor.Humidity;
   App.ReadIllumination -> IlluminationSensor;

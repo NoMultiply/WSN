@@ -1,6 +1,5 @@
 #include <Timer.h>
-#include "DirectCollector.h"
-#include "printf.h"
+#include "../WSN.h"
 
 module DirectCollectorC {
   uses interface Boot;
@@ -8,8 +7,10 @@ module DirectCollectorC {
   uses interface Timer<TMilli> as Timer0;
   uses interface Packet;
   uses interface AMPacket;
-  uses interface AMSend;
-  uses interface Receive;
+  uses interface AMSend as DataSend;
+  uses interface Receive as DataReceive;
+  uses interface AMSend as ControlSend;
+  uses interface Receive as ControlReceive;
   uses interface SplitControl as AMControl;
   uses interface Read<uint16_t> as ReadTemperature;
   uses interface Read<uint16_t> as ReadHumidity;
@@ -21,28 +22,27 @@ implementation {
   message_t pkt;
   message_t rpkt;
   nxSYS_Time_t SysClock = { 0, 0 };
-  DirectCollectorMsg * msgrPkt;
-  DirectCollectorMsg msgPkt;
+  DataMsg * rDataPkt;
+  DataMsg dataPkt;
+  ControlMsg * controlPkt;
   bool temperatureBusy = FALSE;
   bool humidityBusy = FALSE;
   bool illuminationBusy = FALSE;
   uint16_t count = 0;
   void SendPacket() {
     if (temperatureBusy && humidityBusy && illuminationBusy) {
-      DirectCollectorMsg* collectPacket = (DirectCollectorMsg*)(call Packet.getPayload(&pkt, sizeof(DirectCollectorMsg)));
+      DataMsg* collectPacket = (DataMsg*)(call Packet.getPayload(&pkt, sizeof(DataMsg)));
       if (collectPacket == NULL) {
         return;
       }
       call Leds.led2Toggle();
       collectPacket->nodeid = TOS_NODE_ID;
-      collectPacket->temperature = msgPkt.temperature;
-      collectPacket->humidity = msgPkt.humidity;
-      collectPacket->illumination = msgPkt.illumination;
+      collectPacket->temperature = dataPkt.temperature;
+      collectPacket->humidity = dataPkt.humidity;
+      collectPacket->illumination = dataPkt.illumination;
       collectPacket->sequence_num = count;
       collectPacket->timestamp = SysClock.timestamp;
-      printf("%lu %u\n", SysClock.timestamp, count);
-      printfflush();
-      if (!(call AMSend.send(AM_BROADCAST_ADDR, &pkt, sizeof(DirectCollectorMsg)) == SUCCESS)) {
+      if (!(call DataSend.send(AM_BROADCAST_ADDR, &pkt, sizeof(DataMsg)) == SUCCESS)) {
         temperatureBusy = FALSE;
         humidityBusy = FALSE;
         illuminationBusy = FALSE;
@@ -51,18 +51,28 @@ implementation {
   }
 
   task void SendReceive() {
-    DirectCollectorMsg* collectPacket = (DirectCollectorMsg*)(call Packet.getPayload(&rpkt, sizeof(DirectCollectorMsg)));
+    DataMsg* collectPacket = (DataMsg*)(call Packet.getPayload(&rpkt, sizeof(DataMsg)));
     if (collectPacket == NULL) {
       return;
     }
-    call Leds.led2Toggle();
-    collectPacket->nodeid = msgrPkt->nodeid;
-    collectPacket->temperature = msgrPkt->temperature;
-    collectPacket->humidity = msgrPkt->humidity;
-    collectPacket->illumination = msgrPkt->illumination;
-    collectPacket->sequence_num = msgrPkt->sequence_num;
-    collectPacket->timestamp = msgrPkt->timestamp;
-    if (!(call AMSend.send(AM_BROADCAST_ADDR, &rpkt, sizeof(DirectCollectorMsg)) == SUCCESS)) {
+    call Leds.led1Toggle();
+    collectPacket->nodeid = rDataPkt->nodeid;
+    collectPacket->temperature = rDataPkt->temperature;
+    collectPacket->humidity = rDataPkt->humidity;
+    collectPacket->illumination = rDataPkt->illumination;
+    collectPacket->sequence_num = rDataPkt->sequence_num;
+    collectPacket->timestamp = rDataPkt->timestamp;
+    if (!(call DataSend.send(AM_BROADCAST_ADDR, &rpkt, sizeof(DataMsg)) == SUCCESS)) {
+    }
+  }
+
+  task void SendControl() {
+    ControlMsg* collectPacket = (ControlMsg*)(call Packet.getPayload(&rpkt, sizeof(ControlMsg)));
+    if (collectPacket == NULL) {
+      return;
+    }
+    collectPacket->freq = controlPkt->freq;
+    if (!(call ControlSend.send(AM_BROADCAST_ADDR, &rpkt, sizeof(ControlMsg)) == SUCCESS)) {
     }
   }
 
@@ -103,7 +113,7 @@ implementation {
   {
     if (result == SUCCESS){
       if (!temperatureBusy) {
-        msgPkt.temperature = (nx_uint16_t)(-40.1+ 0.01 * data);
+        dataPkt.temperature = (nx_uint16_t)(-40.1+ 0.01 * data);
         temperatureBusy = TRUE;
         SendPacket();
       }
@@ -114,8 +124,8 @@ implementation {
   {
     if (result == SUCCESS){
       if (!humidityBusy && temperatureBusy) {
-        msgPkt.humidity = (nx_uint16_t)(-4.0 + 4.0 * data / 100.0 + (-28.0 / 1000.0 / 10000.0) * (data * data));
-        msgPkt.humidity = (nx_uint16_t)((msgPkt.temperature - 25.0) * (1.0 / 100.0 + 8.0 * data / 100.0 / 1000.0) + msgPkt.humidity);
+        dataPkt.humidity = (nx_uint16_t)(-4.0 + 4.0 * data / 100.0 + (-28.0 / 1000.0 / 10000.0) * (data * data));
+        dataPkt.humidity = (nx_uint16_t)((dataPkt.temperature - 25.0) * (1.0 / 100.0 + 8.0 * data / 100.0 / 1000.0) + dataPkt.humidity);
         humidityBusy = TRUE;
         SendPacket();
       }
@@ -126,7 +136,7 @@ implementation {
   {
     if (result == SUCCESS){
       if (!illuminationBusy) {
-        msgPkt.illumination = data;
+        dataPkt.illumination = data;
         illuminationBusy = TRUE;
         SendPacket();
       }
@@ -140,7 +150,7 @@ implementation {
     GetTime();
   }
 
-  event void AMSend.sendDone(message_t* msg, error_t err) {
+  event void DataSend.sendDone(message_t* msg, error_t err) {
     if (&pkt == msg) {
       temperatureBusy = FALSE;
       humidityBusy = FALSE;
@@ -149,11 +159,23 @@ implementation {
     }
   }
 
-  event message_t* Receive.receive(message_t* msg, void* payload, uint8_t len){
-    if (len == sizeof(DirectCollectorMsg)) {
-      msgrPkt = (DirectCollectorMsg*)payload;
+  event void ControlSend.sendDone(message_t* msg, error_t err) {
+  }
+
+  event message_t* DataReceive.receive(message_t* msg, void* payload, uint8_t len){
+    if (len == sizeof(DataMsg)) {
+      rDataPkt = (DataMsg*)payload;
       call Leds.led1Toggle();
       post SendReceive();
+    }
+    return msg;
+  }
+
+  event message_t* ControlReceive.receive(message_t* msg, void* payload, uint8_t len){
+    call Leds.led0Toggle();
+    if (len == sizeof(ControlMsg)) {
+      controlPkt = (ControlMsg*)payload;
+      post SendControl();
     }
     return msg;
   }
