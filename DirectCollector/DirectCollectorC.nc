@@ -152,26 +152,29 @@ implementation {
     SendPacket();
   }
 
-  event message_t* DataReceive.receive(message_t* msg, void* payload, uint8_t len){
+  event message_t* DataReceive.receive(message_t* msg, void* payload, uint8_t len) {
     message_t * ret = msg;
-    atomic {
-      if (!dataFull) {
-        ret = dataQueue[dataIn];
-        dataQueue[dataIn] = msg;
-
-        dataIn = (dataIn + 1) % DATA_QUEUE_LEN;
-
-        if (dataIn == dataOut) {
-          dataFull = TRUE;
-        }
-
+    if (len == sizeof(DataMsg)) {
+      atomic {
         if (!dataFull) {
-          post sendData();
-          dataBusy = TRUE;
+          ret = dataQueue[dataIn];
+          dataQueue[dataIn] = msg;
+
+          dataIn = (dataIn + 1) % DATA_QUEUE_LEN;
+
+          if (dataIn == dataOut) {
+            dataFull = TRUE;
+          }
+
+          if (!dataFull) {
+            post sendData();
+            dataBusy = TRUE;
+            call Leds.led1Toggle();
+          }
         }
-      }
-      else {
-        //TODO drop packet
+        else {
+          //TODO drop packet
+        }
       }
     }
     return ret;
@@ -186,7 +189,7 @@ implementation {
 
     msg = dataQueue[dataOut];
     if (!(call DataSend.send(AM_BROADCAST_ADDR, msg, sizeof(DataMsg)) == SUCCESS)) {
-      call Leds.led1Toggle();
+      call Leds.led0Toggle();
     }
     else {
       //TODO
@@ -253,7 +256,7 @@ implementation {
     }
 
     msg = controlQueue[controlOut];
-    if (!(call DataSend.send(AM_BROADCAST_ADDR, msg, sizeof(ControlMsg)) == SUCCESS)) {
+    if (!(call ControlSend.send(AM_BROADCAST_ADDR, msg, sizeof(ControlMsg)) == SUCCESS)) {
       call Leds.led0Toggle();
     }
     else {
