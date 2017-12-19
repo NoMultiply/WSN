@@ -18,12 +18,12 @@ implementation {
   BaseStationP.UartReceive -> Serial.Receive;
   BaseStationP.UartPacket -> Serial;
   BaseStationP.UartAMPacket -> Serial;
-
   BaseStationP.RadioSend -> AMSenderC;
   BaseStationP.RadioReceive -> AMReceiverC;
   BaseStationP.RadioSnoop -> AMSnooperC;
   BaseStationP.RadioPacket -> Radio;
   BaseStationP.RadioAMPacket -> Radio;
+  BaseStationP.RadioAck -> AMSenderC;
 
   BaseStationP.Leds -> LedsC;
 }

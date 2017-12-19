@@ -14,7 +14,7 @@ module IndirectCollectorC {
   uses interface Read<uint16_t> as ReadHumidity;
   uses interface Read<uint16_t> as ReadIllumination;
   uses interface Counter<T32khz,uint16_t> as Msp430Counter32khz;
-  uses interface PacketAcknowledgements;
+  uses interface PacketAcknowledgements as DataAck;
 }
 
 implementation {
@@ -38,7 +38,7 @@ implementation {
     if (collectPacket == NULL) {
       return;
     }
-    call Leds.led2Toggle();
+    //call Leds.led2Toggle();
     collectPacket->nodeid = TOS_NODE_ID;
     collectPacket->temperature = dataPkt.temperature;
     collectPacket->humidity = dataPkt.humidity;
@@ -47,7 +47,8 @@ implementation {
     atomic collectPacket->timestamp = SysClock.timestamp;
     atomic {
       if (!dataFull) {
-        dataQueue[dataIn] = &pkt;
+        dataQueueBufs[dataIn] = pkt;
+        //dataQueue[dataIn] = &pkt;
 
         dataIn = (dataIn + 1) % DATA_QUEUE_LEN;
 
@@ -56,10 +57,13 @@ implementation {
         }
 
         if (!dataFull) {
-
           post sendData();
           dataBusy = TRUE;
+          call Leds.led2Toggle();
         }
+      }
+      else {
+        call Leds.led2On();
       }
     }
   }
@@ -145,13 +149,13 @@ implementation {
     }
 
     msg = dataQueue[dataOut];
-    if(call PacketAcknowledgements.requestACK(msg) == SUCCESS){
-      if (!(call DataSend.send(AM_BROADCAST_ADDR, msg, sizeof(DataMsg)) == SUCCESS)) {
-        call Leds.led1Toggle();
-      }
-      else {
-        //TODO
-      }
+    call DataAck.requestAck(msg);
+    call Leds.led0Toggle();
+    if (!(call DataSend.send(AM_BROADCAST_ADDR, msg, sizeof(DataMsg)) == SUCCESS)) {
+
+    }
+    else {
+      //TODO
     }
   }
 
@@ -161,7 +165,7 @@ implementation {
 
     }
     else {
-      if(call PacketAcknowledgements.wasAcked(msg) == SUCCESS){
+      if(call DataAck.wasAcked(msg)){
         atomic if (msg == dataQueue[dataOut]) {
           if (++dataOut >= DATA_QUEUE_LEN) {
             dataOut = 0;

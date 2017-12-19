@@ -16,73 +16,89 @@ module DirectCollectorC {
   uses interface Read<uint16_t> as ReadHumidity;
   uses interface Read<uint16_t> as ReadIllumination;
   uses interface Counter<T32khz,uint16_t> as Msp430Counter32khz;
+  uses interface PacketAcknowledgements as DataAck;
+  uses interface PacketAcknowledgements as ControlAck;
 }
 
 implementation {
+  enum {
+    DATA_QUEUE_LEN = 12,
+    CONTROL_QUEUE_LEN = 12,
+  };
+  message_t dataQueueBufs[DATA_QUEUE_LEN];
+  message_t * ONE_NOK dataQueue[DATA_QUEUE_LEN];
+  uint8_t dataIn, dataOut;
+  bool dataBusy, dataFull;
+
+  message_t controlQueueBufs[CONTROL_QUEUE_LEN];
+  message_t * ONE_NOK controlQueue[CONTROL_QUEUE_LEN];
+  uint8_t controlIn, controlOut;
+  bool controlBusy, controlFull;
+
   message_t pkt;
-  message_t rpkt;
-  nxSYS_Time_t SysClock = { 0, 0 };
-  DataMsg * rDataPkt;
+  nxSYS_Time_t SysClock = { 0, 0, 0 };
   DataMsg dataPkt;
-  ControlMsg * controlPkt;
-  bool temperatureBusy = FALSE;
-  bool humidityBusy = FALSE;
-  bool illuminationBusy = FALSE;
   uint16_t count = 0;
+
+  task void sendData();
+  task void sendControl();
+
   void SendPacket() {
-    if (temperatureBusy && humidityBusy && illuminationBusy) {
-      DataMsg* collectPacket = (DataMsg*)(call Packet.getPayload(&pkt, sizeof(DataMsg)));
-      if (collectPacket == NULL) {
-        return;
-      }
-      call Leds.led2Toggle();
-      collectPacket->nodeid = TOS_NODE_ID;
-      collectPacket->temperature = dataPkt.temperature;
-      collectPacket->humidity = dataPkt.humidity;
-      collectPacket->illumination = dataPkt.illumination;
-      collectPacket->sequence_num = count;
-      collectPacket->timestamp = SysClock.timestamp;
-      if (!(call DataSend.send(AM_BROADCAST_ADDR, &pkt, sizeof(DataMsg)) == SUCCESS)) {
-        temperatureBusy = FALSE;
-        humidityBusy = FALSE;
-        illuminationBusy = FALSE;
-      }
-    }
-  }
-
-  task void SendReceive() {
-    DataMsg* collectPacket = (DataMsg*)(call Packet.getPayload(&rpkt, sizeof(DataMsg)));
+    DataMsg* collectPacket = (DataMsg*)(call Packet.getPayload(&pkt, sizeof(DataMsg)));
     if (collectPacket == NULL) {
       return;
     }
-    call Leds.led1Toggle();
-    collectPacket->nodeid = rDataPkt->nodeid;
-    collectPacket->temperature = rDataPkt->temperature;
-    collectPacket->humidity = rDataPkt->humidity;
-    collectPacket->illumination = rDataPkt->illumination;
-    collectPacket->sequence_num = rDataPkt->sequence_num;
-    collectPacket->timestamp = rDataPkt->timestamp;
-    if (!(call DataSend.send(AM_BROADCAST_ADDR, &rpkt, sizeof(DataMsg)) == SUCCESS)) {
-    }
-  }
+    collectPacket->nodeid = TOS_NODE_ID;
+    collectPacket->temperature = dataPkt.temperature;
+    collectPacket->humidity = dataPkt.humidity;
+    collectPacket->illumination = dataPkt.illumination;
+    collectPacket->sequence_num = count;
+    atomic collectPacket->timestamp = SysClock.timestamp;
+    atomic {
+      if (!dataFull) {
+        //dataQueue[dataIn] = msg;
+        dataQueueBufs[dataIn] = pkt;
+        dataIn = (dataIn + 1) % DATA_QUEUE_LEN;
 
-  task void SendControl() {
-    ControlMsg* collectPacket = (ControlMsg*)(call Packet.getPayload(&rpkt, sizeof(ControlMsg)));
-    if (collectPacket == NULL) {
-      return;
-    }
-    collectPacket->control_type = controlPkt->control_type;
-    collectPacket->interval = controlPkt->interval;
-    if (!(call ControlSend.send(AM_BROADCAST_ADDR, &rpkt, sizeof(ControlMsg)) == SUCCESS)) {
+        if (dataIn == dataOut) {
+          dataFull = TRUE;
+        }
+
+        if (!dataFull) {
+          post sendData();
+          dataBusy = TRUE;
+          call Leds.led2Toggle();
+        }
+      }
+      else {
+        //TODO drop packet
+      }
     }
   }
 
   event void Boot.booted() {
+    uint8_t i;
+    for (i = 0; i < DATA_QUEUE_LEN; ++i) {
+      dataQueue[i] = &dataQueueBufs[i];
+    }
+    dataIn = dataOut = 0;
+    dataBusy = FALSE;
+    dataFull = TRUE;
+
+    for (i = 0; i < CONTROL_QUEUE_LEN; ++i) {
+      controlQueue[i] = &controlQueueBufs[i];
+    }
+    controlIn = controlOut = 0;
+    controlBusy = FALSE;
+    controlFull = TRUE;
+
     call AMControl.start();
   }
 
   event void AMControl.startDone(error_t err) {
     if (err == SUCCESS) {
+      dataFull = FALSE;
+      controlFull = FALSE;
       call Timer0.startPeriodic(TIMER_PERIOD_MILLI);
     }
     else {
@@ -113,34 +129,22 @@ implementation {
   event void ReadTemperature.readDone(error_t result, uint16_t data)
   {
     if (result == SUCCESS){
-      if (!temperatureBusy) {
-        dataPkt.temperature = (nx_uint16_t)(-40.1+ 0.01 * data);
-        temperatureBusy = TRUE;
-        SendPacket();
-      }
+      dataPkt.temperature = (nx_uint16_t)(-40.1+ 0.01 * data);
     }
   }
 
   event void ReadHumidity.readDone(error_t result, uint16_t data)
   {
     if (result == SUCCESS){
-      if (!humidityBusy && temperatureBusy) {
-        dataPkt.humidity = (nx_uint16_t)(-4.0 + 4.0 * data / 100.0 + (-28.0 / 1000.0 / 10000.0) * (data * data));
-        dataPkt.humidity = (nx_uint16_t)((dataPkt.temperature - 25.0) * (1.0 / 100.0 + 8.0 * data / 100.0 / 1000.0) + dataPkt.humidity);
-        humidityBusy = TRUE;
-        SendPacket();
-      }
+      dataPkt.humidity = (nx_uint16_t)(-4.0 + 4.0 * data / 100.0 + (-28.0 / 1000.0 / 10000.0) * (data * data));
+      dataPkt.humidity = (nx_uint16_t)((dataPkt.temperature - 25.0) * (1.0 / 100.0 + 8.0 * data / 100.0 / 1000.0) + dataPkt.humidity);
     }
   }
 
   event void ReadIllumination.readDone(error_t result, uint16_t data)
   {
     if (result == SUCCESS){
-      if (!illuminationBusy) {
         dataPkt.illumination = data;
-        illuminationBusy = TRUE;
-        SendPacket();
-      }
     }
   }
 
@@ -148,33 +152,79 @@ implementation {
     call ReadTemperature.read();
     call ReadHumidity.read();
     call ReadIllumination.read();
+    ++count;
     GetTime();
+    SendPacket();
   }
 
-  event void DataSend.sendDone(message_t* msg, error_t err) {
-    if (&pkt == msg) {
-      temperatureBusy = FALSE;
-      humidityBusy = FALSE;
-      illuminationBusy = FALSE;
-      count++;
-    }
-  }
-
-  event void ControlSend.sendDone(message_t* msg, error_t err) {
-  }
-
-  event message_t* DataReceive.receive(message_t* msg, void* payload, uint8_t len){
+  event message_t* DataReceive.receive(message_t* msg, void* payload, uint8_t len) {
     if (len == sizeof(DataMsg)) {
-      rDataPkt = (DataMsg*)payload;
-      call Leds.led1Toggle();
-      post SendReceive();
+      atomic {
+        if (!dataFull) {
+          //dataQueue[dataIn] = msg;
+          dataQueueBufs[dataIn] = *msg;
+          dataIn = (dataIn + 1) % DATA_QUEUE_LEN;
+
+          if (dataIn == dataOut) {
+            dataFull = TRUE;
+          }
+
+          if (!dataFull) {
+            post sendData();
+            dataBusy = TRUE;
+            call Leds.led2Toggle();
+          }
+        }
+        else {
+          //TODO drop packet
+        }
+      }
     }
     return msg;
   }
 
+  task void sendData() {
+    message_t * msg;
+    atomic if (dataIn == dataOut && !dataFull) {
+      dataBusy = FALSE;
+      return;
+    }
+
+    msg = dataQueue[dataOut];
+    if (call DataAck.requestAck(msg) == SUCCESS) {
+      call Leds.led0Toggle();
+      if (!(call DataSend.send(AM_BROADCAST_ADDR, msg, sizeof(DataMsg)) == SUCCESS)) {
+
+      }
+      else {
+        //TODO
+      }
+    }
+  }
+
+  event void DataSend.sendDone(message_t* msg, error_t err) {
+    if (err != SUCCESS) {
+      //TODO
+    }
+    else {
+      if(call DataAck.wasAcked(msg)){
+        call Leds.led1Toggle();
+        atomic if (msg == dataQueue[dataOut]) {
+          if (++dataOut >= DATA_QUEUE_LEN) {
+            dataOut = 0;
+          }
+          if (dataFull) {
+            dataFull = FALSE;
+          }
+        }
+      }
+    }
+    post sendData();
+  }
+
   event message_t* ControlReceive.receive(message_t* msg, void* payload, uint8_t len){
     if (len == sizeof(ControlMsg)) {
-      controlPkt = (ControlMsg*)payload;
+      ControlMsg* controlPkt = (ControlMsg*)payload;
       call Leds.led0Toggle();
       if (controlPkt->control_type == CONTROL_STOP) {
         call Timer0.stop();
@@ -182,8 +232,62 @@ implementation {
       else {
         call Timer0.startPeriodic(controlPkt->interval);
       }
-      post SendControl();
+    }
+    atomic {
+      if (!controlFull) {
+        controlQueue[controlIn] = msg;
+
+        controlIn = (controlIn + 1) % CONTROL_QUEUE_LEN;
+
+        if (controlIn == controlOut) {
+          controlFull = TRUE;
+        }
+
+        if (!controlFull) {
+          post sendControl();
+          controlBusy = TRUE;
+        }
+      }
+      else {
+        //TODO drop packet
+      }
     }
     return msg;
+  }
+
+  task void sendControl() {
+    message_t * msg;
+    atomic if (controlIn == controlOut && !controlFull) {
+      controlBusy = FALSE;
+      return;
+    }
+
+    msg = controlQueue[controlOut];
+    call ControlAck.requestAck(msg);
+    if (!(call ControlSend.send(AM_BROADCAST_ADDR, msg, sizeof(ControlMsg)) == SUCCESS)) {
+      call Leds.led0Toggle();
+    }
+    else {
+      //TODO
+    }
+  }
+
+  event void ControlSend.sendDone(message_t* msg, error_t err) {
+    if (err != SUCCESS) {
+      //TODO
+    }
+    else {
+      if(call ControlAck.wasAcked(msg)){
+        atomic if (msg == controlQueue[controlOut]) {
+          if (++controlOut >= CONTROL_QUEUE_LEN) {
+            controlOut = 0;
+          }
+          if (controlFull) {
+            controlFull = FALSE;
+          }
+        }
+      }
+    }
+    post sendControl();
   }
 }
