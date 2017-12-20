@@ -46,7 +46,8 @@ implementation {
     atomic collectPacket->timestamp = SysClock.timestamp;
     atomic {
       if (!dataFull) {
-        dataQueue[dataIn] = &pkt;
+        dataQueueBufs[dataIn] = pkt;
+        //dataQueue[dataIn] = &pkt;
 
         dataIn = (dataIn + 1) % DATA_QUEUE_LEN;
 

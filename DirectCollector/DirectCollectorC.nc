@@ -158,7 +158,7 @@ implementation {
       atomic {
         if (!dataFull) {
           ret = dataQueue[dataIn];
-          dataQueue[dataIn] = msg;
+          dataQueueBufs[dataIn] = *msg;
 
           dataIn = (dataIn + 1) % DATA_QUEUE_LEN;
 
