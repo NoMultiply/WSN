@@ -25,9 +25,11 @@ implementation {
   App.AMPacket -> DataSender;
   App.AMControl -> ActiveMessageC;
   App.DataSend -> DataSender;
+  App.DataAck -> DataSender;
   App.DataReceive -> DataReceiver;
   App.ControlReceive -> ControlReceiver;
   App.ControlSend -> ControlSender;
+  App.ControlAck -> ControlSender;
   App.ReadTemperature -> Sensor.Temperature;
   App.ReadHumidity -> Sensor.Humidity;
   App.ReadIllumination -> IlluminationSensor;

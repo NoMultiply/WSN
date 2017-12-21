@@ -1,0 +1,14 @@
+ID:31 SeqNo:130 temperature:55 humidity:169 illumination:523 time:134177
+ID:32 SeqNo:123 temperature:60 humidity:170 illumination:125 time:127681
+ID:31 SeqNo:131 temperature:55 humidity:169 illumination:525 time:135177
+ID:32 SeqNo:124 temperature:60 humidity:170 illumination:126 time:128681
+ID:31 SeqNo:132 temperature:55 humidity:169 illumination:523 time:136177
+ID:32 SeqNo:125 temperature:60 humidity:170 illumination:126 time:129681
+ID:31 SeqNo:133 temperature:55 humidity:169 illumination:523 time:137177
+ID:32 SeqNo:126 temperature:60 humidity:170 illumination:122 time:130681
+ID:31 SeqNo:134 temperature:55 humidity:169 illumination:523 time:138177
+ID:32 SeqNo:127 temperature:60 humidity:170 illumination:126 time:131681
+ID:31 SeqNo:135 temperature:55 humidity:169 illumination:522 time:139177
+ID:32 SeqNo:128 temperature:60 humidity:170 illumination:124 time:132681
+ID:31 SeqNo:136 temperature:55 humidity:169 illumination:523 time:140177
+ID:32 SeqNo:129 temperature:60 humidity:170 illumination:128 time:133681

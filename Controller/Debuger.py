@@ -29,13 +29,15 @@ class DebugerGui(Ui_DebugerGUI, QMainWindow):
     def show_received(self, node_id, sequence_num, timestamp, temperature, humidity, illumination):
         string = "node_id: %d, sequence_num: %d, timestamp: %d, temperature: %d, humidity: %d, illumination: %d" %\
                  (node_id, sequence_num, timestamp, temperature, humidity, illumination)
-        if node_id == 1:
-            self.m_result1.append(string)
+        if node_id == 31:
+            if sequence_num != self.count1:
+                self.m_result1.append(string)
             if self.count1 >= 0 and sequence_num - self.count1 > 1:
                 self.m_result1.append(u"\n丢包！！！\n")
             self.count1 = sequence_num
-        elif node_id == 2:
-            self.m_result2.append(string)
+        elif node_id == 32:
+            if sequence_num != self.count2:
+                self.m_result2.append(string)
             if self.count2 >= 0 and sequence_num - self.count2 > 1:
                 self.m_result2.append(u"\n丢包！！！\n")
             self.count2 = sequence_num

@@ -16,12 +16,14 @@ module DirectCollectorC {
   uses interface Read<uint16_t> as ReadHumidity;
   uses interface Read<uint16_t> as ReadIllumination;
   uses interface Counter<T32khz,uint16_t> as Msp430Counter32khz;
+  uses interface PacketAcknowledgements as DataAck;
+  uses interface PacketAcknowledgements as ControlAck;
 }
 
 implementation {
   enum {
-    DATA_QUEUE_LEN = 12,
-    CONTROL_QUEUE_LEN = 12,
+    DATA_QUEUE_LEN = 50,
+    CONTROL_QUEUE_LEN = 50,
   };
   message_t dataQueueBufs[DATA_QUEUE_LEN];
   message_t * ONE_NOK dataQueue[DATA_QUEUE_LEN];
@@ -46,7 +48,6 @@ implementation {
     if (collectPacket == NULL) {
       return;
     }
-    call Leds.led2Toggle();
     collectPacket->nodeid = TOS_NODE_ID;
     collectPacket->temperature = dataPkt.temperature;
     collectPacket->humidity = dataPkt.humidity;
@@ -55,18 +56,22 @@ implementation {
     atomic collectPacket->timestamp = SysClock.timestamp;
     atomic {
       if (!dataFull) {
-        dataQueue[dataIn] = &pkt;
-
+        //dataQueue[dataIn] = msg;
+        dataQueueBufs[dataIn] = pkt;
         dataIn = (dataIn + 1) % DATA_QUEUE_LEN;
 
         if (dataIn == dataOut) {
           dataFull = TRUE;
         }
+        call Leds.led2Toggle();
 
-        if (!dataFull) {
+        if (!dataBusy) {
           post sendData();
           dataBusy = TRUE;
         }
+      }
+      else {
+        call Leds.led2On();
       }
     }
   }
@@ -153,23 +158,22 @@ implementation {
   }
 
   event message_t* DataReceive.receive(message_t* msg, void* payload, uint8_t len) {
-    message_t * ret = msg;
+    call Leds.led1Toggle();
     if (len == sizeof(DataMsg)) {
       atomic {
         if (!dataFull) {
-          ret = dataQueue[dataIn];
+          //dataQueue[dataIn] = msg;
           dataQueueBufs[dataIn] = *msg;
-
           dataIn = (dataIn + 1) % DATA_QUEUE_LEN;
 
           if (dataIn == dataOut) {
             dataFull = TRUE;
           }
 
-          if (!dataFull) {
+          if (!dataBusy) {
             post sendData();
             dataBusy = TRUE;
-            call Leds.led1Toggle();
+            call Leds.led2Toggle();
           }
         }
         else {
@@ -177,7 +181,7 @@ implementation {
         }
       }
     }
-    return ret;
+    return msg;
   }
 
   task void sendData() {
@@ -188,8 +192,11 @@ implementation {
     }
 
     msg = dataQueue[dataOut];
-    if (!(call DataSend.send(AM_BROADCAST_ADDR, msg, sizeof(DataMsg)) == SUCCESS)) {
-      call Leds.led0Toggle();
+    call DataAck.requestAck(msg);
+    call Leds.led0Toggle();
+    //call AMPacket.setType(msg, AM_DATAMSG);
+    if (!(call DataSend.send(ID_BASESTATION, msg, sizeof(DataMsg)) == SUCCESS)) {
+
     }
     else {
       //TODO
@@ -199,14 +206,18 @@ implementation {
   event void DataSend.sendDone(message_t* msg, error_t err) {
     if (err != SUCCESS) {
       //TODO
+
     }
     else {
-      atomic if (msg == dataQueue[dataOut]) {
-        if (++dataOut >= DATA_QUEUE_LEN) {
-          dataOut = 0;
-        }
-        if (dataFull) {
-          dataFull = FALSE;
+      if(call DataAck.wasAcked(msg)){
+        atomic if (msg == dataQueue[dataOut]) {
+          if (++dataOut >= DATA_QUEUE_LEN) {
+            dataOut = 0;
+          }
+          if (dataFull) {
+            dataFull = FALSE;
+          }
+          call Leds.led1Toggle();
         }
       }
     }
@@ -214,7 +225,6 @@ implementation {
   }
 
   event message_t* ControlReceive.receive(message_t* msg, void* payload, uint8_t len){
-    message_t * ret = msg;
     if (len == sizeof(ControlMsg)) {
       ControlMsg* controlPkt = (ControlMsg*)payload;
       call Leds.led0Toggle();
@@ -227,7 +237,6 @@ implementation {
     }
     atomic {
       if (!controlFull) {
-        ret = controlQueue[controlIn];
         controlQueue[controlIn] = msg;
 
         controlIn = (controlIn + 1) % CONTROL_QUEUE_LEN;
@@ -245,7 +254,7 @@ implementation {
         //TODO drop packet
       }
     }
-    return ret;
+    return msg;
   }
 
   task void sendControl() {
@@ -256,7 +265,8 @@ implementation {
     }
 
     msg = controlQueue[controlOut];
-    if (!(call ControlSend.send(AM_BROADCAST_ADDR, msg, sizeof(ControlMsg)) == SUCCESS)) {
+    call ControlAck.requestAck(msg);
+    if (!(call ControlSend.send(ID_INDIRECT_COLLECTOR, msg, sizeof(ControlMsg)) == SUCCESS)) {
       call Leds.led0Toggle();
     }
     else {
@@ -269,12 +279,14 @@ implementation {
       //TODO
     }
     else {
-      atomic if (msg == controlQueue[controlOut]) {
-        if (++controlOut >= CONTROL_QUEUE_LEN) {
-          controlOut = 0;
-        }
-        if (controlFull) {
-          controlFull = FALSE;
+      if(call ControlAck.wasAcked(msg)){
+        atomic if (msg == controlQueue[controlOut]) {
+          if (++controlOut >= CONTROL_QUEUE_LEN) {
+            controlOut = 0;
+          }
+          if (controlFull) {
+            controlFull = FALSE;
+          }
         }
       }
     }

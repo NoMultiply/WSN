@@ -14,11 +14,12 @@ module IndirectCollectorC {
   uses interface Read<uint16_t> as ReadHumidity;
   uses interface Read<uint16_t> as ReadIllumination;
   uses interface Counter<T32khz,uint16_t> as Msp430Counter32khz;
+  uses interface PacketAcknowledgements as DataAck;
 }
 
 implementation {
   enum {
-    DATA_QUEUE_LEN = 12,
+    DATA_QUEUE_LEN = 50,
   };
   message_t dataQueueBufs[DATA_QUEUE_LEN];
   message_t * ONE_NOK dataQueue[DATA_QUEUE_LEN];
@@ -37,7 +38,7 @@ implementation {
     if (collectPacket == NULL) {
       return;
     }
-    call Leds.led2Toggle();
+    //call Leds.led2Toggle();
     collectPacket->nodeid = TOS_NODE_ID;
     collectPacket->temperature = dataPkt.temperature;
     collectPacket->humidity = dataPkt.humidity;
@@ -50,15 +51,19 @@ implementation {
         //dataQueue[dataIn] = &pkt;
 
         dataIn = (dataIn + 1) % DATA_QUEUE_LEN;
+        call Leds.led2Toggle();
 
         if (dataIn == dataOut) {
           dataFull = TRUE;
         }
 
-        if (!dataFull) {
+        if (!dataBusy) {
           post sendData();
           dataBusy = TRUE;
         }
+      }
+      else {
+        call Leds.led2On();
       }
     }
   }
@@ -144,8 +149,11 @@ implementation {
     }
 
     msg = dataQueue[dataOut];
-    if (!(call DataSend.send(AM_BROADCAST_ADDR, msg, sizeof(DataMsg)) == SUCCESS)) {
-      call Leds.led1Toggle();
+    call DataAck.requestAck(msg);
+    call Leds.led0Toggle();
+    //call AMPacket.setType(msg, AM_WSN_INDIRECT_COLLECTOR);
+    if (!(call DataSend.send(ID_DIRECT_COLLECTOR, msg, sizeof(DataMsg)) == SUCCESS)) {
+
     }
     else {
       //TODO
@@ -155,14 +163,18 @@ implementation {
   event void DataSend.sendDone(message_t* msg, error_t err) {
     if (err != SUCCESS) {
       //TODO
+
     }
     else {
-      atomic if (msg == dataQueue[dataOut]) {
-        if (++dataOut >= DATA_QUEUE_LEN) {
-          dataOut = 0;
-        }
-        if (dataFull) {
-          dataFull = FALSE;
+      if(call DataAck.wasAcked(msg)){
+        atomic if (msg == dataQueue[dataOut]) {
+          if (++dataOut >= DATA_QUEUE_LEN) {
+            dataOut = 0;
+          }
+          if (dataFull) {
+            dataFull = FALSE;
+          }
+          call Leds.led1Toggle();
         }
       }
     }

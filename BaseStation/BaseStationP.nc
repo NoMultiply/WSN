@@ -11,13 +11,12 @@ module BaseStationP @safe() {
     interface Receive as UartReceive[am_id_t id];
     interface Packet as UartPacket;
     interface AMPacket as UartAMPacket;
-
     interface AMSend as RadioSend;
     interface Receive as RadioReceive;
-    interface Receive as RadioSnoop;
+    //interface Receive as RadioSnoop;
     interface Packet as RadioPacket;
     interface AMPacket as RadioAMPacket;
-
+    interface PacketAcknowledgements as RadioAck;
     interface Leds;
   }
 }
@@ -25,8 +24,8 @@ module BaseStationP @safe() {
 implementation
 {
   enum {
-    UART_QUEUE_LEN = 12,
-    RADIO_QUEUE_LEN = 12,
+    UART_QUEUE_LEN = 50,
+    RADIO_QUEUE_LEN = 50,
   };
 
   message_t  uartQueueBufs[UART_QUEUE_LEN];
@@ -88,11 +87,11 @@ implementation
 
   message_t* ONE receive(message_t* ONE msg, void* payload, uint8_t len);
 
-  event message_t *RadioSnoop.receive(message_t *msg,
+  /*event message_t *RadioSnoop.receive(message_t *msg,
 						    void *payload,
 						    uint8_t len) {
     return receive(msg, payload, len);
-  }
+  }*/
 
   event message_t *RadioReceive.receive(message_t *msg,
 						    void *payload,
@@ -101,30 +100,29 @@ implementation
   }
 
   message_t* receive(message_t *msg, void *payload, uint8_t len) {
-    message_t *ret = msg;
+    if (len == sizeof(DataMsg)) {
+      atomic {
+        if (!uartFull) {
+          //dataQueue[dataIn] = msg;
+          uartQueueBufs[uartIn] = *msg;
+          uartIn = (uartIn + 1) % UART_QUEUE_LEN;
 
-    atomic {
-      if (!uartFull)
-	{
-	  ret = uartQueue[uartIn];
-	  uartQueue[uartIn] = msg;
+          if (uartIn == uartOut) {
+            uartFull = TRUE;
+          }
 
-	  uartIn = (uartIn + 1) % UART_QUEUE_LEN;
-
-	  if (uartIn == uartOut)
-	    uartFull = TRUE;
-
-	  if (!uartBusy)
-	    {
-	      post uartSendTask();
-	      uartBusy = TRUE;
-	    }
-	}
-      else
-	dropBlink();
+          if (!uartBusy)
+    	    {
+    	      post uartSendTask();
+    	      uartBusy = TRUE;
+    	    }
+        }
+        else {
+  	       dropBlink();
+        }
+      }
     }
-
-    return ret;
+    return msg;
   }
 
   uint8_t tmpLen;
@@ -176,15 +174,13 @@ implementation
   event message_t *UartReceive.receive[am_id_t id](message_t *msg,
 						   void *payload,
 						   uint8_t len) {
-    message_t *ret = msg;
     bool reflectToken = FALSE;
 
     atomic
       if (!radioFull)
 	{
 	  reflectToken = TRUE;
-	  ret = radioQueue[radioIn];
-	  radioQueue[radioIn] = msg;
+	  radioQueueBufs[radioIn] = *msg;
 	  if (++radioIn >= RADIO_QUEUE_LEN)
 	    radioIn = 0;
 	  if (radioIn == radioOut)
@@ -203,7 +199,7 @@ implementation
       //call UartTokenReceive.ReflectToken(Token);
     }
 
-    return ret;
+    return msg;
   }
 
   task void radioSendTask() {
@@ -227,8 +223,8 @@ implementation
 
     call RadioPacket.clear(msg);
     call RadioAMPacket.setSource(msg, source);
-
-    if (call RadioSend.send(AM_BROADCAST_ADDR, msg, len) == SUCCESS) {
+    call RadioAck.requestAck(msg);
+    if (call RadioSend.send(ID_DIRECT_COLLECTOR, msg, len) == SUCCESS) {
       call Leds.led0Toggle();
     }
     else
@@ -241,16 +237,16 @@ implementation
   event void RadioSend.sendDone(message_t* msg, error_t error) {
     if (error != SUCCESS)
       failBlink();
-    else
-      atomic
-	if (msg == radioQueue[radioOut])
-	  {
-	    if (++radioOut >= RADIO_QUEUE_LEN)
-	      radioOut = 0;
-	    if (radioFull)
-	      radioFull = FALSE;
-	  }
-
+    else {
+      if (call RadioAck.wasAcked(msg)) {
+        atomic if (msg == radioQueue[radioOut]) {
+    	    if (++radioOut >= RADIO_QUEUE_LEN)
+    	      radioOut = 0;
+    	    if (radioFull)
+    	      radioFull = FALSE;
+    	  }
+      }
+    }
     post radioSendTask();
   }
 }
