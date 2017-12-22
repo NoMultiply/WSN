@@ -25,7 +25,10 @@ implementation {
   App.CoreReceive -> CoreReceiver;
   App.RandomDataReceive -> RandomDataReceiver;
 }
+<<<<<<< HEAD
 
 
 
 //TODO
+=======
+>>>>>>> fa07d5a7073faaaed4b403346c7b38a359d58e2c
