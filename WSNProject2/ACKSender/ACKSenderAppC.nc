@@ -21,6 +21,3 @@ implementation {
   ACKSenderC.Control -> ActiveMessageC;
   ACKSenderC.Receive -> AMReceiverC;
 }
-
-
-//TODO
