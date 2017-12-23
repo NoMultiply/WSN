@@ -45,12 +45,14 @@ implementation {
 		}
 		return msg;
 	}
-
   event void AMSend.sendDone(message_t* msg, error_t error) {
 		if(&pkt == msg) {
 			busy = FALSE;
 		}
 	}
 }
+<<<<<<< HEAD
 
 //TODO
+=======
+>>>>>>> dbab5e8e516f5fce3e5982e9c20069b119771768
