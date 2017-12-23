@@ -20,9 +20,4 @@ typedef nx_struct ReplyMsg {
   nx_uint32_t reply_data;
 }ReplyMsg;
 */
-<<<<<<< HEAD
-
-
-=======
->>>>>>> dbab5e8e516f5fce3e5982e9c20069b119771768
 #endif

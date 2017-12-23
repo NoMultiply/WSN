@@ -92,4 +92,64 @@ implementation {
       }
     }
   }
+
+  void heaplify(uint32_t *data,uint16_t len, uint16_t index){
+    uint16_t left = 2 * index + 1;
+    uint16_t right = 2 * index + 2;
+    uint16_t tmp;
+    if (left > len - 1) {
+        return;
+    }
+    else if (left == len - 1) {
+        if (data[index] < data[left]) {
+            //swap
+            tmp =data[index];
+            data[index] = data[left];
+            data[left] = tmp;
+        }
+        return;
+    }
+    else {
+        if (data[index] < data[left] || data[index] < data[right]) {
+            if (data[left] < data[right]) {
+                //swap right with parent
+                tmp = data[index];
+                data[index] = data[right];
+                data[right] = tmp;
+                heaplify(data,len,right);
+            }
+            else {
+                //swap left with parent
+                tmp = data[index];
+                data[index] = data[left];
+                data[left] = tmp;
+                heaplify(data,len,left);
+            }
+        }
+    }
+  }
+
+  void build_heap(uint32_t *data,uint16_t len) {
+      uint16_t i;
+      for (i = len - 1; i >= 0; i--) {
+          if (2 * i + 1 > len - 1)
+            continue;
+          heaplify(data,len,i);
+      }
+  }
+
+  void heapsort(uint32_t *data,uint16_t len) {
+    uint16_t tmp;
+    uint16_t newlen = len;
+    build_heap(data,len);
+    while(newlen > 1){
+        //swap head with last
+        tmp = data[0];
+        data[0] = data[newlen - 1];
+        data[newlen - 1] = tmp;
+        newlen--;
+        //heapify new heap
+        heaplify(data,newlen,0);
+    }
+  }
 }

@@ -21,7 +21,7 @@ implementation {
 
   event void Boot.booted() {
     call AMControl.start();
-    uint8_t i;
+    uint16_t i;
     for (i = 0; i < DATA_ARRAY_LEN; ++i) {
       randomData[i] = UINT_MAX;
     }
@@ -42,7 +42,7 @@ implementation {
   event message_t* RandomDataReceiver.receive(message_t* msg, void* payload, uint8_t len){
     if (len == sizeof(DataMsg)) {
       DataMsg *data_pkt = (DataMsg *)payload;
-      randomData[data_pkt.sequence_number] = data_pkt.random_integer;
+      randomData[data_pkt->sequence_number - 1] = data_pkt->random_integer;
     }
     return msg;
   }
@@ -52,8 +52,8 @@ implementation {
       AskMsg *ask_pkt = (AskMsg *)payload;
       DataMsg *replypkt;
       replypkt = (DataMsg *)(call Packet.getPayload(&pkt,sizeof(DataMsg)));
-      replypkt.sequence_number = ask_pkt.sequence;
-      replypkt.random_integer = randomData[ask_pkt.sequence];
+      replypkt->sequence_number = ask_pkt->sequence;
+      replypkt->random_integer = randomData[ask_pkt->sequence - 1];
       if (call AMSend.send(AM_BROADCAST_ADDR, &pkt,sizeof(DataMsg)) == SUCCESS) {
         busy = TRUE;
       }
@@ -67,9 +67,3 @@ implementation {
     }
   }
 }
-<<<<<<< HEAD
-
-
-//TODO
-=======
->>>>>>> dbab5e8e516f5fce3e5982e9c20069b119771768
