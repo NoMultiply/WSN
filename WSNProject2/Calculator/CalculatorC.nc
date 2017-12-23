@@ -35,12 +35,12 @@ implementation {
   }
 
   task void cal_result() {
-    uint16_t i = 0;
-    uint16_t j = 0;
-    uint32_t temp = 0;
+    //uint16_t i = 0;
+    //uint16_t j = 0;
+    //uint32_t temp = 0;
     //printfflush();
     call Leds.led0On();
-    for (i = 0; i < 2000; ++i) {
+    /*for (i = 0; i < 2000; ++i) {
       for (j = 1; j < 2000 - i; ++j) {
         if (nums[j] < nums[j - 1]) {
           temp = nums[j];
@@ -48,7 +48,7 @@ implementation {
           nums[j - 1] = temp;
         }
       }
-    }
+    }*/
     average = sum / 2000;
     median = (nums[999] + nums[1000]) / 2;
     call Leds.led1On();
@@ -57,9 +57,28 @@ implementation {
     printfflush();
   }
 
+  uint32_t insert_len;
+  uint32_t insert_data;
+
+  task void insert() {
+    atomic {
+      uint32_t i, j;
+      for (i = 0; i < insert_len - 1; ++i) {
+        if (nums[i] > insert_data) {
+          break;
+        }
+      }
+      for (j = insert_len; j > i; --j) {
+        nums[j] = nums[j - 1];
+      }
+      nums[i] = insert_data;
+    }
+  }
+
   event message_t* Receive.receive(message_t* msg, void* payload, uint8_t len){
     if (!finish) {
       if (len == sizeof(data_packge)) {
+        uint32_t temp;
         data_packge * pkt = (data_packge*)payload;
         if (count % 100 == 0) {
           call Leds.led1Toggle();
@@ -71,6 +90,17 @@ implementation {
             call Leds.led0Toggle();
           count = pkt->sequence_number;
         }
+        temp = pkt->random_integer;
+        if (temp > max) {
+          max = temp;
+        }
+        if (temp < min) {
+          min = temp;
+        }
+        sum += temp;
+        atomic insert_len = count;
+        atomic insert_data = temp;
+        post insert();
         if (count == 2000) {
           count = 1;
           finish = 1;
@@ -79,14 +109,6 @@ implementation {
           call Leds.led0Off();
           post cal_result();
         }
-        nums[count - 1] = pkt->random_integer;
-        if (nums[count - 1] > max) {
-          max = nums[count - 1];
-        }
-        if (nums[count - 1] < min) {
-          min = nums[count - 1];
-        }
-        sum += nums[count - 1];
         ++count;
       }
     }
