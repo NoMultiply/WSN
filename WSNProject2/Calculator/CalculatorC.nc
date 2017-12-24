@@ -103,6 +103,39 @@ implementation {
     }
   }
 
+  task void binsert() {
+    atomic {
+      uint32_t j, low, mid;
+      int32_t high;
+      low = 0;
+      high = insert_len - 1;
+      while (low <= high) {
+          mid = (low + high) / 2;
+          if (insert_data <= nums[mid])
+              high = mid - 1;
+          else
+              low = mid + 1;
+      }
+      //the location to insert data is high + 1
+      for (j = insert_len - 1; j >= high + 1; j--) {
+          nums[j + 1] = nums[j];
+      }
+      nums[j + 1] = insert_data;
+
+      ++insert_len;
+      insert_busy = FALSE;
+
+    }
+    if (finish) {
+      if (!req_lost()) {
+        printf("success\n");
+        printfflush();
+        post cal_result();
+      }
+    }
+  }
+
+
   uint8_t req_index, req_bit;
 
   bool req_lost() {
