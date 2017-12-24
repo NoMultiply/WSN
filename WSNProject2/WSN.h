@@ -6,8 +6,8 @@ enum {
   DATA_ARRAY_LEN = 2000,
   SEQ_SET_LEN = 63,
   UINT_MAX = 2147483647,
-  AM_REQMSG_NODE1 = 34,
-  AM_REQMSG_NODE2 = 35
+  //AM_REQMSG = 34,
+  //AM_REQMSG_NODE2 = 35
 };
 
 typedef nx_struct AskMsg {

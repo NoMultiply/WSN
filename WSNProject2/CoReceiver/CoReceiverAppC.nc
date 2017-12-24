@@ -1,5 +1,4 @@
-#include <Timer.h>
-#include "CoReceiver.h"
+#include "../WSN.h"
 
 configuration CoReceiverAppC {
 }
@@ -8,20 +7,17 @@ implementation {
   components MainC;
   components LedsC;
   components CoReceiverC as App;
-  components new TimerMilliC() as Timer0;
   components ActiveMessageC;
-  components new AMSenderC(AM_CORECEIVER) as CoSender;
-  components new AMReceiverC(AM_CORECEIVER) as CoreReceiver;
-  components new AMReceiverC(AM_CORECEIVER) as RandomDataReceiver;
+  components new AMSenderC(AM_CO) as CoSender;
+  components new AMReceiverC(AM_CO) as CoreReceiver;
+  components new AMReceiverC(0) as RandomDataReceiver;
 
   App.Boot -> MainC;
   App.Leds -> LedsC;
-  App.Timer0 -> Timer0;
-  App.Packet -> AMSenderC;
-  App.AMPacket -> AMSenderC;
+  App.Packet -> CoSender;
+  App.AMPacket -> CoSender;
   App.AMControl -> ActiveMessageC;
-  App.AMSend -> AMSenderC;
-  App.Receive -> AMReceiverC;
+  App.CoreSend -> CoSender;
   App.CoreReceive -> CoreReceiver;
   App.RandomDataReceive -> RandomDataReceiver;
 }

@@ -1,13 +1,12 @@
-#include <Timer.h>
-#include "CoReceiver.h"
+#include "../RandomSender/Calculate.h"
+#include "../WSN.h"
 
 module CoReceiverC {
   uses interface Boot;
   uses interface Leds;
-  uses interface Timer<TMilli> as Timer0;
   uses interface Packet;
   uses interface AMPacket;
-  uses interface AMSend;
+  uses interface AMSend as CoreSend;
   uses interface Receive as CoreReceive;
   uses interface SplitControl as AMControl;
   uses interface Receive as RandomDataReceive;
@@ -20,8 +19,8 @@ implementation {
   uint8_t seqNum[];
 
   event void Boot.booted() {
-    call AMControl.start();
     uint16_t i;
+    call AMControl.start();
     for (i = 0; i < DATA_ARRAY_LEN; ++i) {
       randomData[i] = UINT_MAX;
     }
@@ -39,31 +38,29 @@ implementation {
   event void AMControl.stopDone(error_t err) {
   }
 
-  event message_t* RandomDataReceiver.receive(message_t* msg, void* payload, uint8_t len){
-    if (len == sizeof(DataMsg)) {
-      DataMsg *data_pkt = (DataMsg *)payload;
+  event message_t* RandomDataReceive.receive(message_t* msg, void* payload, uint8_t len){
+    if (len == sizeof(data_packge)) {
+      data_packge *data_pkt = (data_packge *)payload;
       randomData[data_pkt->sequence_number - 1] = data_pkt->random_integer;
     }
     return msg;
   }
 
-  event message_t* CoreReceiver.receive(message_t* msg, void* payload, uint8_t len){
+  event message_t* CoreReceive.receive(message_t* msg, void* payload, uint8_t len){
     if (len == sizeof(AskMsg)) {
       AskMsg *ask_pkt = (AskMsg *)payload;
-      DataMsg *replypkt;
-      replypkt = (DataMsg *)(call Packet.getPayload(&pkt,sizeof(DataMsg)));
+      data_packge *replypkt;
+      replypkt = (data_packge *)(call Packet.getPayload(&pkt,sizeof(data_packge)));
       replypkt->sequence_number = ask_pkt->sequence;
       replypkt->random_integer = randomData[ask_pkt->sequence - 1];
-      if (call AMSend.send(AM_BROADCAST_ADDR, &pkt,sizeof(DataMsg)) == SUCCESS) {
+      if (call CoreSend.send(AM_BROADCAST_ADDR, &pkt,sizeof(data_packge)) == SUCCESS) {
         busy = TRUE;
       }
     }
     return msg;
   }
 
-  event void AMSend.sendDone(message_t* msg, error_t err) {
-    if (&pkt == msg) {
-      busy = FALSE;
-    }
+  event void CoreSend.sendDone(message_t* msg, error_t err) {
+    // Nothing TODO
   }
 }

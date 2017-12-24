@@ -6,15 +6,19 @@ implementation {
   components LedsC;
   components CalculatorC as App;
   components ActiveMessageC;
-  components new AMReceiverC(0);
+  components new AMReceiverC(0) as RandomDataReceiver;
+  components new AMReceiverC(AM_CO) as CoReceiver;
+  components new AMSenderC(AM_CO) as ReqSender;
 
   components PrintfC;
   components SerialStartC;
-  components new AMSenderC(AM_REQMSG_NODE1) as ReqSender;
 
   App.Boot -> MainC;
   App.AMControl -> ActiveMessageC;
-  App.Receive -> AMReceiverC;
+  App.RandomDataReceive -> RandomDataReceiver;
+  App.CoReceive -> CoReceiver;
+  App.Packet -> ReqSender;
+  App.AMPacket -> ReqSender;
   App.Leds -> LedsC;
   App.ReqSend -> ReqSender;
 }

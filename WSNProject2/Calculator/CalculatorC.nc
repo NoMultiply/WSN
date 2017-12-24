@@ -5,13 +5,16 @@
 module CalculatorC {
   uses interface Boot;
   uses interface Leds;
-  uses interface Receive;
+  uses interface Receive as RandomDataReceive;
+  uses interface Receive as CoReceive;
+  uses interface Packet;
+  uses interface AMPacket;
   uses interface SplitControl as AMControl;
   uses interface AMSend as ReqSend;
 }
 
 implementation {
-  message_t pkt;
+  message_t askPkt;
   uint32_t count = 1;
 	uint32_t nums[DATA_ARRAY_LEN];
 	uint32_t max = 0;
@@ -77,6 +80,9 @@ implementation {
     printfflush();
   }
 
+  bool req_lost();
+  task void sendRequest();
+
   task void insert() {
     atomic {
       uint32_t i, j;
@@ -92,14 +98,47 @@ implementation {
       ++insert_len;
       insert_busy = FALSE;
     }
+    if (finish) {
+      if (!req_lost()) {
+        post cal_result();
+      }
+    }
   }
 
-  bool check(uint16_t offset) {
-    return (*(seq_set + offset / 32) & (1 << (31 - offset % 32))) != 0;
+  uint8_t req_index, req_bit;
+
+  bool req_lost() {
+    bool flag = FALSE;
+    for (; req_index < SEQ_SET_LEN; ++req_index) {
+      for (; req_bit < 32; ++req_bit) {
+        if (seq_set[req_index] & ((uint32_t)1 << req_bit)) {
+          // Nothing TODO
+        }
+        else {
+          flag = TRUE;
+        }
+      }
+      if (flag) {
+        break;
+      }
+      req_bit = 0;
+    }
+    if (flag) {
+      AskMsg* ask_pkt = (AskMsg*)(call Packet.getPayload(&askPkt, sizeof(AskMsg)));
+      if (ask_pkt == NULL) {
+        // May have something TODO
+        return TRUE;
+      }
+      ask_pkt -> sequence = ((req_index << 5) | req_bit) + 1;
+      post sendRequest();
+      return TRUE;
+    }
+    else {
+      return FALSE;
+    }
   }
 
-  event message_t* Receive.receive(message_t* msg, void* payload, uint8_t len){
-    uint16_t i;
+  event message_t* RandomDataReceive.receive(message_t* msg, void* payload, uint8_t len){
     if (!finish) {
       if (len == sizeof(data_packge)) {
         uint32_t temp;
@@ -115,17 +154,11 @@ implementation {
           call Leds.led2Toggle();
           call Leds.led1Off();
           call Leds.led0Off();
-          for(i = 0;i < DATA_ARRAY_LEN;i++){
-            if(!check(i)){
-              AskMsg* ask_pkt = (AskMsg*)(call Packet.getPayload(&pkt, sizeof(AskMsg)));
-              if (ask_pkt == NULL) {
-                return;
-              }
-              ask_pkt -> sequence = i + 1;
-              post sendRequest();
-            }
+          req_index = 0;
+          req_bit = 0;
+          if (!req_lost()) {
+            post cal_result();
           }
-          post cal_result();
           return msg;
         }
         if (count % DATA_ARRAY_LEN != pkt->sequence_number) {
@@ -145,8 +178,8 @@ implementation {
             //judge lose packet
             insert_busy = TRUE;
             insert_data = temp;
-            index = count >> 5;
-            bit = count & 31;
+            index = (count - 1) >> 5;
+            bit = (count - 1) & 31;
             seq_set[index] |= ((uint32_t)1 << bit);
             post insert();
           }
@@ -158,10 +191,34 @@ implementation {
   }
 
   task void sendRequest() {
-    if (!(call ReqSend.send(AM_BROADCAST_ADDR, pkt, sizeof(AskMsg)) == SUCCESS)) {
-
+    if (!(call ReqSend.send(AM_BROADCAST_ADDR, &askPkt, sizeof(AskMsg)) == SUCCESS)) {
+      // Nothing TODO
     } else {
-      //TODO busy = True
+      post sendRequest();
+    }
+  }
+
+  event void ReqSend.sendDone(message_t* msg, error_t err) {
+    // Nothing TODO
+  }
+
+  event message_t* CoReceive.receive(message_t* msg, void* payload, uint8_t len) {
+    if (len == sizeof(data_packge)) {
+      uint32_t index, bit;
+      data_packge * pkt = (data_packge*)payload;
+      insert_busy = TRUE;
+      insert_data = pkt->random_integer;
+      index = (pkt->sequence_number - 1) >> 5;
+      bit = (pkt->sequence_number - 1) & 31;
+      if (index == req_index && bit == req_bit) {
+        seq_set[index] |= ((uint32_t)1 << bit);
+        ++req_bit;
+        if (req_bit >= 32) {
+          ++req_index;
+          req_bit = 0;
+        }
+        post insert();
+      }
     }
   }
 }
