@@ -7,9 +7,11 @@ module CalculatorC {
   uses interface Leds;
   uses interface Receive;
   uses interface SplitControl as AMControl;
+  uses interface AMSend as ReqSend;
 }
 
 implementation {
+  message_t pkt;
   uint32_t count = 1;
 	uint32_t nums[DATA_ARRAY_LEN];
 	uint32_t max = 0;
@@ -92,7 +94,12 @@ implementation {
     }
   }
 
+  bool check(uint16_t offset) {
+    return (*(seq_set + offset / 32) & (1 << (31 - offset % 32))) != 0;
+  }
+
   event message_t* Receive.receive(message_t* msg, void* payload, uint8_t len){
+    uint16_t i;
     if (!finish) {
       if (len == sizeof(data_packge)) {
         uint32_t temp;
@@ -108,6 +115,16 @@ implementation {
           call Leds.led2Toggle();
           call Leds.led1Off();
           call Leds.led0Off();
+          for(i = 0;i < DATA_ARRAY_LEN;i++){
+            if(!check(i)){
+              AskMsg* ask_pkt = (AskMsg*)(call Packet.getPayload(&pkt, sizeof(AskMsg)));
+              if (ask_pkt == NULL) {
+                return;
+              }
+              ask_pkt -> sequence = i + 1;
+              post sendRequest();
+            }
+          }
           post cal_result();
           return msg;
         }
@@ -125,6 +142,7 @@ implementation {
         sum += temp;
         if (!insert_busy) {
           atomic {
+            //judge lose packet
             insert_busy = TRUE;
             insert_data = temp;
             index = count >> 5;
@@ -137,5 +155,13 @@ implementation {
       }
     }
     return msg;
+  }
+
+  task void sendRequest() {
+    if (!(call ReqSend.send(AM_BROADCAST_ADDR, pkt, sizeof(AskMsg)) == SUCCESS)) {
+
+    } else {
+      //TODO busy = True
+    }
   }
 }
