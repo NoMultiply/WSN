@@ -21,4 +21,5 @@ implementation {
   App.AMPacket -> ReqSender;
   App.Leds -> LedsC;
   App.ReqSend -> ReqSender;
+  App.ReqAck -> ReqSender;
 }

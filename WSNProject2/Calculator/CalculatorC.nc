@@ -9,6 +9,7 @@ module CalculatorC {
   uses interface Receive as CoReceive;
   uses interface Packet;
   uses interface AMPacket;
+  uses interface PacketAcknowledgements as ReqAck;
   uses interface SplitControl as AMControl;
   uses interface AMSend as ReqSend;
 }
@@ -34,7 +35,6 @@ implementation {
       for (i = 0; i < SEQ_SET_LEN; ++i) {
         seq_set[i] = 0;
       }
-      call Leds.led2On();
       insert_busy = FALSE;
       insert_len = 1;
     }
@@ -51,7 +51,7 @@ implementation {
   }
 
   task void cal_result() {
-    uint16_t i = 0;
+    //uint16_t i = 0;
     //uint16_t j = 0;
     //uint32_t temp = 0;
     //printfflush();
@@ -66,18 +66,14 @@ implementation {
       }
     }*/
     printf("insert_len: %lu\n", insert_len);
-    atomic {
-      for (i = 0; i < insert_len; ++i) {
-        printf("%lu \n", nums[i]);
-      }
-    }
 
     average = sum / DATA_ARRAY_LEN;
     median = (nums[999] + nums[1000]) / 2;
     call Leds.led1On();
-    call Leds.led0Off();
     printf("%lu %lu %lu %lu %lu\n", max, min, sum, average, median);
     printfflush();
+    call Leds.led0On();
+    call Leds.led2On();
   }
 
   bool req_lost();
@@ -100,6 +96,8 @@ implementation {
     }
     if (finish) {
       if (!req_lost()) {
+        printf("success\n");
+        printfflush();
         post cal_result();
       }
     }
@@ -109,27 +107,41 @@ implementation {
 
   bool req_lost() {
     bool flag = FALSE;
-    for (; req_index < SEQ_SET_LEN; ++req_index) {
-      for (; req_bit < 32; ++req_bit) {
-        if (seq_set[req_index] & ((uint32_t)1 << req_bit)) {
-          // Nothing TODO
+    bool check_finish = FALSE;
+    uint32_t seq;
+    atomic {
+      for (; req_index < SEQ_SET_LEN; ++req_index) {
+        if (req_index == SEQ_SET_LEN - 1) {
+          check_finish = TRUE;
         }
-        else {
-          flag = TRUE;
+        seq = seq_set[req_index];
+        for (; req_bit < 32; ++req_bit) {
+          if (check_finish && req_bit == 16) {
+            return FALSE;
+          }
+          if (seq & ((uint32_t)1 << req_bit)) {
+            // Nothing TODO
+          }
+          else {
+            flag = TRUE;
+            break;
+          }
         }
+        if (flag) {
+          break;
+        }
+        req_bit = 0;
       }
-      if (flag) {
-        break;
-      }
-      req_bit = 0;
     }
-    if (flag) {
+    atomic if (flag) {
       AskMsg* ask_pkt = (AskMsg*)(call Packet.getPayload(&askPkt, sizeof(AskMsg)));
       if (ask_pkt == NULL) {
-        // May have something TODO
-        return TRUE;
+        // Nothing TODO
+        return req_lost();
       }
-      ask_pkt -> sequence = ((req_index << 5) | req_bit) + 1;
+      ask_pkt -> sequence = (((uint32_t)req_index << 5) | (uint32_t)req_bit) + 1;
+      /*printf("req: %u, index: %lu, %lu\n", ask_pkt -> sequence, (uint32_t)req_index << 5, (uint32_t)req_bit);
+      printfflush();*/
       post sendRequest();
       return TRUE;
     }
@@ -151,12 +163,13 @@ implementation {
         }
         if (count > pkt->sequence_number) {
           finish = 1;
-          call Leds.led2Toggle();
           call Leds.led1Off();
           call Leds.led0Off();
           req_index = 0;
           req_bit = 0;
           if (!req_lost()) {
+            printf("cal_result\n");
+            printfflush();
             post cal_result();
           }
           return msg;
@@ -191,27 +204,48 @@ implementation {
   }
 
   task void sendRequest() {
-    if (!(call ReqSend.send(AM_BROADCAST_ADDR, &askPkt, sizeof(AskMsg)) == SUCCESS)) {
-      // Nothing TODO
-    } else {
-      post sendRequest();
+    call Leds.led0Toggle();
+    while ((call ReqAck.requestAck(&askPkt)) != SUCCESS) {
+    }
+    while ((call ReqSend.send(123, &askPkt, sizeof(AskMsg)) == SUCCESS)) {
+      while ((call ReqAck.requestAck(&askPkt)) != SUCCESS) {
+
+      }
     }
   }
 
   event void ReqSend.sendDone(message_t* msg, error_t err) {
-    // Nothing TODO
+    if (call ReqAck.wasAcked(&askPkt)) {
+      // Nothing TODO
+    }
+    else {
+      post sendRequest();
+    }
+    printfflush();
   }
 
   event message_t* CoReceive.receive(message_t* msg, void* payload, uint8_t len) {
     if (len == sizeof(data_packge)) {
-      uint32_t index, bit;
+      uint8_t index, bit;
       data_packge * pkt = (data_packge*)payload;
+      call Leds.led2Toggle();
       insert_busy = TRUE;
       insert_data = pkt->random_integer;
+      atomic if (insert_data == UINT_MAX) {
+        printf("lose packet %u\n", pkt->sequence_number);
+        printfflush();
+      }
       index = (pkt->sequence_number - 1) >> 5;
       bit = (pkt->sequence_number - 1) & 31;
       if (index == req_index && bit == req_bit) {
         seq_set[index] |= ((uint32_t)1 << bit);
+        sum += insert_data;
+        if (insert_data > max) {
+          max = insert_data;
+        }
+        if (insert_data < min) {
+          min = insert_data;
+        }
         ++req_bit;
         if (req_bit >= 32) {
           ++req_index;
@@ -219,6 +253,11 @@ implementation {
         }
         post insert();
       }
+      else {
+        post sendRequest();
+        call Leds.led1Toggle();
+      }
     }
+    return msg;
   }
 }

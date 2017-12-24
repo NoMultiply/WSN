@@ -20,4 +20,5 @@ implementation {
   App.CoreSend -> CoSender;
   App.CoreReceive -> CoreReceiver;
   App.RandomDataReceive -> RandomDataReceiver;
+  App.CoreAck -> CoSender;
 }
