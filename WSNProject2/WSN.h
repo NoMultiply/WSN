@@ -3,6 +3,9 @@
 
 enum {
   AM_CO = 0xeb,
+  ID_CORE = 58,
+  ID_CORECEIVER_1 = 59,
+  ID_CORECEIVER_2 = 60,
   DATA_ARRAY_LEN = 2000,
   SEQ_SET_LEN = 63,
   UINT_MAX = 2147483647,

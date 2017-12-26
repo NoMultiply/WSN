@@ -7,6 +7,7 @@ module CalculatorC {
   uses interface Leds;
   uses interface Receive as RandomDataReceive;
   uses interface Receive as CoReceive;
+  uses interface Receive as CoReceive2;
   uses interface Packet;
   uses interface AMPacket;
   uses interface PacketAcknowledgements as ReqAck;
@@ -25,6 +26,7 @@ implementation {
 	uint32_t median = 0;
   uint32_t insert_len;
   uint32_t insert_data;
+  uint32_t b_start, b_end;
   uint32_t seq_set[SEQ_SET_LEN];
   bool insert_busy = FALSE;
   bool finish = FALSE;
@@ -37,6 +39,7 @@ implementation {
       }
       insert_busy = FALSE;
       insert_len = 1;
+      b_start = b_end = DATA_ARRAY_LEN + 1;
     }
     else {
       call AMControl.start();
@@ -51,24 +54,11 @@ implementation {
   }
 
   task void cal_result() {
-    //uint16_t i = 0;
-    //uint16_t j = 0;
-    //uint32_t temp = 0;
-    //printfflush();
     call Leds.led0On();
-    /*for (i = 0; i < DATA_ARRAY_LEN; ++i) {
-      for (j = 1; j < DATA_ARRAY_LEN - i; ++j) {
-        if (nums[j] < nums[j - 1]) {
-          temp = nums[j];
-          nums[j] = nums[j - 1];
-          nums[j - 1] = temp;
-        }
-      }
-    }*/
     printf("insert_len: %lu\n", insert_len);
 
     average = sum / DATA_ARRAY_LEN;
-    median = (nums[999] + nums[1000]) / 2;
+    median = (nums[(b_start + 999) % DATA_ARRAY_LEN] + nums[(b_start + 1000) % DATA_ARRAY_LEN]) / 2;
     call Leds.led1On();
     printf("%lu %lu %lu %lu %lu\n", max, min, sum, average, median);
     printfflush();
@@ -79,53 +69,150 @@ implementation {
   bool req_lost();
   task void sendRequest();
 
-  task void insert() {
-    atomic {
-      uint32_t i, j;
-      for (i = 0; i < insert_len - 1; ++i) {
-        if (nums[i] < insert_data) {
-          break;
+  task void b_insert() {
+    uint32_t left, right, mid, front, back, i, pos;
+    if (b_start == DATA_ARRAY_LEN + 1) {
+      nums[0] = insert_data;
+      b_start = b_end = 0;
+    }
+    else {
+      if (insert_data >= nums[b_end]) {
+        ++b_end;
+        nums[b_end] = insert_data;
+      }
+      else if (insert_data <= nums[b_start] ){
+        if (b_start == 0) {
+          b_start = DATA_ARRAY_LEN - 1;
+        }
+        else {
+          --b_start;
+        }
+        nums[b_start] = insert_data;
+      }
+      else {
+        left = b_start;
+        right = b_end;
+        while (1) {
+          if (left == right) {
+            if (left >= b_start) {
+              front = left - b_start;
+            }
+            else {
+              front = left + DATA_ARRAY_LEN - b_start;
+            }
+            if (b_end >= left) {
+              back = b_end - left;
+            }
+            else {
+              back = b_end + DATA_ARRAY_LEN - left;
+            }
+            if (back <= front) {
+              pos = left;
+              if (insert_data >= nums[left]) {
+                pos = left + 1;
+                if (pos >= DATA_ARRAY_LEN) {
+                  pos = 0;
+                }
+              }
+              //printf("pos: %d, ", pos);
+              i = b_end;
+              while (1) {
+                if (i == DATA_ARRAY_LEN - 1) {
+                  nums[0] = nums[i];
+                }
+                else {
+                  nums[i + 1] = nums[i];
+                }
+                if (i == pos) {
+                  break;
+                }
+                if (i == 0) {
+                  i = DATA_ARRAY_LEN - 1;
+                }
+                else {
+                  --i;
+                }
+              }
+              nums[pos] = insert_data;
+              ++b_end;
+            }
+            else {
+              pos = left;
+              if (insert_data <= nums[left]) {
+                if (pos == 0) {
+                  pos = DATA_ARRAY_LEN - 1;
+                }
+                else {
+                  pos = left - 1;
+                }
+              }
+              i = b_start;
+              while (1) {
+                if (i == 0) {
+                  nums[DATA_ARRAY_LEN - 1] = nums[0];
+                }
+                else {
+                  nums[i - 1] = nums[i];
+                }
+                if (i == pos) {
+                  break;
+                }
+                ++i;
+                if (i >= DATA_ARRAY_LEN) {
+                  i = 0;
+                }
+              }
+              nums[pos] = insert_data;
+              if (b_start == 0) {
+                b_start = DATA_ARRAY_LEN - 1;
+              }
+              else {
+                --b_start;
+              }
+            }
+            break;
+          }
+          else {
+            //printf("left: %d, right: %d\n", left, right);
+            if (left > right) {
+              mid = ((left + right + DATA_ARRAY_LEN) / 2) % DATA_ARRAY_LEN;
+            }
+            else {
+              mid = (left + right) / 2;
+            }
+            if (insert_data == nums[mid]) {
+              left = right = mid;
+            }
+            else if (insert_data > nums[mid]) {
+              if (mid == right) {
+                left = right;
+              }
+              else {
+                left = mid + 1;
+                if (left >= DATA_ARRAY_LEN) {
+                  left = 0;
+                }
+              }
+            }
+            else {
+              if (mid == left) {
+                right = left;
+              }
+              else {
+                if (mid == 0) {
+                  right = DATA_ARRAY_LEN - 1;
+                }
+                else {
+                  right = mid - 1;
+                }
+              }
+            }
+          }
         }
       }
-      for (j = insert_len; j > i; --j) {
-        nums[j] = nums[j - 1];
-      }
-      nums[i] = insert_data;
-      ++insert_len;
-      insert_busy = FALSE;
     }
-    if (finish) {
-      if (!req_lost()) {
-        printf("success\n");
-        printfflush();
-        post cal_result();
-      }
-    }
-  }
-
-  task void binsert() {
-    atomic {
-      uint32_t j, low, mid;
-      int32_t high;
-      low = 0;
-      high = insert_len - 1;
-      while (low <= high) {
-          mid = (low + high) / 2;
-          if (insert_data <= nums[mid])
-              high = mid - 1;
-          else
-              low = mid + 1;
-      }
-      //the location to insert data is high + 1
-      for (j = insert_len - 1; j >= high + 1; j--) {
-          nums[j + 1] = nums[j];
-      }
-      nums[j + 1] = insert_data;
-
-      ++insert_len;
-      insert_busy = FALSE;
-
-    }
+    ++insert_len;
+    insert_busy = FALSE;
     if (finish) {
       if (!req_lost()) {
         printf("success\n");
@@ -227,7 +314,7 @@ implementation {
             index = (count - 1) >> 5;
             bit = (count - 1) & 31;
             seq_set[index] |= ((uint32_t)1 << bit);
-            post insert();
+            post b_insert();
           }
         }
         ++count;
@@ -240,7 +327,18 @@ implementation {
     call Leds.led0Toggle();
     while ((call ReqAck.requestAck(&askPkt)) != SUCCESS) {
     }
-    while ((call ReqSend.send(123, &askPkt, sizeof(AskMsg)) == SUCCESS)) {
+    while ((call ReqSend.send(ID_CORECEIVER_1, &askPkt, sizeof(AskMsg)) == SUCCESS)) {
+      while ((call ReqAck.requestAck(&askPkt)) != SUCCESS) {
+
+      }
+    }
+  }
+
+  task void sendRequest2() {
+    call Leds.led0Toggle();
+    while ((call ReqAck.requestAck(&askPkt)) != SUCCESS) {
+    }
+    while ((call ReqSend.send(ID_CORECEIVER_2, &askPkt, sizeof(AskMsg)) == SUCCESS)) {
       while ((call ReqAck.requestAck(&askPkt)) != SUCCESS) {
 
       }
@@ -252,12 +350,17 @@ implementation {
       // Nothing TODO
     }
     else {
-      post sendRequest();
+      uint16_t addr = call AMPacket.destination(msg);
+      if (addr == ID_CORECEIVER_1) {
+        post sendRequest();
+      }
+      else if (addr == ID_CORECEIVER_2) {
+        post sendRequest2();
+      }
     }
-    printfflush();
   }
 
-  event message_t* CoReceive.receive(message_t* msg, void* payload, uint8_t len) {
+  event message_t* CoReceive2.receive(message_t* msg, void* payload, uint8_t len) {
     if (len == sizeof(data_packge)) {
       uint8_t index, bit;
       data_packge * pkt = (data_packge*)payload;
@@ -265,7 +368,7 @@ implementation {
       insert_busy = TRUE;
       insert_data = pkt->random_integer;
       atomic if (insert_data == UINT_MAX) {
-        printf("lose packet %u\n", pkt->sequence_number);
+        printf("CoReceiver 2 lose packet %u\n", pkt->sequence_number);
         printfflush();
       }
       index = (pkt->sequence_number - 1) >> 5;
@@ -284,7 +387,46 @@ implementation {
           ++req_index;
           req_bit = 0;
         }
-        post insert();
+        post b_insert();
+      }
+      else {
+        post sendRequest();
+        call Leds.led1Toggle();
+      }
+    }
+    return msg;
+  }
+
+  event message_t* CoReceive.receive(message_t* msg, void* payload, uint8_t len) {
+    if (len == sizeof(data_packge)) {
+      uint8_t index, bit;
+      data_packge * pkt = (data_packge*)payload;
+      call Leds.led2Toggle();
+      insert_busy = TRUE;
+      insert_data = pkt->random_integer;
+      atomic if (insert_data == UINT_MAX) {
+        post sendRequest2();
+        printf("CoReceiver 1 lose packet %u\n", pkt->sequence_number);
+        printfflush();
+        return msg;
+      }
+      index = (pkt->sequence_number - 1) >> 5;
+      bit = (pkt->sequence_number - 1) & 31;
+      if (index == req_index && bit == req_bit) {
+        seq_set[index] |= ((uint32_t)1 << bit);
+        sum += insert_data;
+        if (insert_data > max) {
+          max = insert_data;
+        }
+        if (insert_data < min) {
+          min = insert_data;
+        }
+        ++req_bit;
+        if (req_bit >= 32) {
+          ++req_index;
+          req_bit = 0;
+        }
+        post b_insert();
       }
       else {
         post sendRequest();

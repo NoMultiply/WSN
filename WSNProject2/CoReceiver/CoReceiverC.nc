@@ -57,7 +57,7 @@ implementation {
     while (call CoreAck.requestAck(&pkt) != SUCCESS) {
 
     }
-    while (call CoreSend.send(124, &pkt, sizeof(data_packge)) == SUCCESS) {
+    while (call CoreSend.send(ID_CORE, &pkt, sizeof(data_packge)) == SUCCESS) {
       while (call CoreAck.requestAck(&pkt) != SUCCESS) {
 
       }

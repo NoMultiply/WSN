@@ -8,6 +8,7 @@ implementation {
   components ActiveMessageC;
   components new AMReceiverC(0) as RandomDataReceiver;
   components new AMReceiverC(AM_CO) as CoReceiver;
+  components new AMReceiverC(AM_CO) as CoReceiver2;
   components new AMSenderC(AM_CO) as ReqSender;
 
   components PrintfC;
@@ -17,6 +18,7 @@ implementation {
   App.AMControl -> ActiveMessageC;
   App.RandomDataReceive -> RandomDataReceiver;
   App.CoReceive -> CoReceiver;
+  App.CoReceive2 -> CoReceiver2;
   App.Packet -> ReqSender;
   App.AMPacket -> ReqSender;
   App.Leds -> LedsC;
