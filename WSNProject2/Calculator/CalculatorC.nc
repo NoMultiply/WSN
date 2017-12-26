@@ -26,7 +26,7 @@ implementation {
 	uint32_t median = 0;
   uint32_t insert_len;
   uint32_t insert_data;
-  uint32_t b_start, b_end;
+  uint32_t b_start, b_end, b_len;
   uint32_t seq_set[SEQ_SET_LEN];
   bool insert_busy = FALSE;
   bool finish = FALSE;
@@ -40,6 +40,7 @@ implementation {
       insert_busy = FALSE;
       insert_len = 1;
       b_start = b_end = DATA_ARRAY_LEN + 1;
+      b_len = 0;
     }
     else {
       call AMControl.start();
@@ -58,7 +59,7 @@ implementation {
     printf("insert_len: %lu\n", insert_len);
 
     average = sum / DATA_ARRAY_LEN;
-    median = (nums[(b_start + 999) % DATA_ARRAY_LEN] + nums[(b_start + 1000) % DATA_ARRAY_LEN]) / 2;
+    median = (nums[b_end] + nums[(b_end + B_LEN - 1) % B_LEN]) / 2;
     call Leds.led1On();
     printf("%lu %lu %lu %lu %lu\n", max, min, sum, average, median);
     printfflush();
@@ -74,11 +75,18 @@ implementation {
     if (b_start == DATA_ARRAY_LEN + 1) {
       nums[0] = insert_data;
       b_start = b_end = 0;
+      ++b_len;
     }
     else {
       if (insert_data >= nums[b_end]) {
-        ++b_end;
-        nums[b_end] = insert_data;
+        if (b_len < B_MID_LEN) {
+          ++b_end;
+          if (b_end >= B_LEN) {
+            b_end = 0;
+          }
+          nums[b_end] = insert_data;
+          ++b_len;
+        }
       }
       else if (insert_data <= nums[b_start] ){
         if (b_start == 0) {
@@ -88,6 +96,16 @@ implementation {
           --b_start;
         }
         nums[b_start] = insert_data;
+        ++b_len;
+        if (b_len > B_MID_LEN) {
+          if (b_end == 0) {
+            b_end = B_LEN - 1;
+          }
+          else {
+            --b_end;
+          }
+          --b_len;
+        }
       }
       else {
         left = b_start;
@@ -135,6 +153,16 @@ implementation {
               }
               nums[pos] = insert_data;
               ++b_end;
+              ++b_len;
+              if (b_len > B_MID_LEN) {
+                if (b_end == 0) {
+                  b_end = B_LEN - 1;
+                }
+                else {
+                  --b_end;
+                }
+                --b_len;
+              }
             }
             else {
               pos = left;
@@ -168,6 +196,16 @@ implementation {
               }
               else {
                 --b_start;
+              }
+              ++b_len;
+              if (b_len > B_MID_LEN) {
+                if (b_end == 0) {
+                  b_end = B_LEN - 1;
+                }
+                else {
+                  --b_end;
+                }
+                --b_len;
               }
             }
             break;
