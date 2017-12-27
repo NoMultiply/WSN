@@ -8,15 +8,19 @@ module CalculatorC {
   uses interface Receive as RandomDataReceive;
   uses interface Receive as CoReceive;
   uses interface Receive as CoReceive2;
+  uses interface Receive as AckReceice;
+  uses interface Timer<TMilli> as Timer0;
   uses interface Packet;
   uses interface AMPacket;
   uses interface PacketAcknowledgements as ReqAck;
   uses interface SplitControl as AMControl;
   uses interface AMSend as ReqSend;
+  uses interface AMSend as ResSend;
 }
 
 implementation {
   message_t askPkt;
+  message_t resPkt;
   uint32_t count = 1;
 	uint32_t nums[DATA_ARRAY_LEN];
 	uint32_t max = 0;
@@ -28,8 +32,11 @@ implementation {
   uint32_t insert_data;
   uint32_t b_start, b_end, b_len;
   uint32_t seq_set[SEQ_SET_LEN];
+  bool stop = FALSE;
+  bool re_ask = FALSE;
   bool insert_busy = FALSE;
   bool finish = FALSE;
+  bool sending = FALSE;
 
   event void AMControl.startDone(error_t err) {
     if (err == SUCCESS) {
@@ -38,6 +45,7 @@ implementation {
         seq_set[i] = 0;
       }
       insert_busy = FALSE;
+      stop = FALSE;
       insert_len = 1;
       b_start = b_end = DATA_ARRAY_LEN + 1;
       b_len = 0;
@@ -54,10 +62,36 @@ implementation {
   event void AMControl.stopDone(error_t err) {
   }
 
+  task void send_result() {
+    while ((call ResSend.send(ID_ZERO, &resPkt, sizeof(ResultMsg)) == SUCCESS)) {
+
+    }
+  }
+
+  event void ResSend.sendDone(message_t* msg, error_t err) {
+  }
+
+  event message_t* AckReceice.receive(message_t* msg, void* payload, uint8_t len) {
+    if (len == sizeof(ack_msg_t)) {
+      ack_msg_t* recv_pkt = (ack_msg_t*)payload;
+      if (recv_pkt->group_id == GROUP_ID) {
+        sending = FALSE;
+        call Timer0.stop();
+      }
+    }
+    return msg;
+  }
+
+  event void Timer0.fired() {
+    if (sending) {
+      post send_result();
+    }
+  }
+
   task void cal_result() {
+    ResultMsg* res_pkt;
     call Leds.led0On();
     printf("insert_len: %lu\n", insert_len);
-
     average = sum / DATA_ARRAY_LEN;
     median = (nums[b_end] + nums[(b_end + B_LEN - 1) % B_LEN]) / 2;
     call Leds.led1On();
@@ -65,6 +99,17 @@ implementation {
     printfflush();
     call Leds.led0On();
     call Leds.led2On();
+    stop = TRUE;
+    sending = TRUE;
+    res_pkt = (ResultMsg*)(call Packet.getPayload(&resPkt, sizeof(ResultMsg)));
+    res_pkt->group_id = GROUP_ID;
+    res_pkt->max = max;
+    res_pkt->min = min;
+    res_pkt->sum = sum;
+    res_pkt->average = average;
+    res_pkt->median = median;
+    call Timer0.startPeriodic(SEND_RESULT_INTERVAL);
+    post send_result();
   }
 
   bool req_lost();
@@ -319,12 +364,14 @@ implementation {
           printf("%lu\n", count);
           printfflush();
         }
-        if (count > pkt->sequence_number) {
+        if (count > pkt->sequence_number + 1000) {
           finish = 1;
           call Leds.led1Off();
           call Leds.led0Off();
           req_index = 0;
           req_bit = 0;
+          printf("Receive done: %lu\n", insert_len);
+          stop = FALSE;
           if (!req_lost()) {
             printf("cal_result\n");
             printfflush();
@@ -343,7 +390,6 @@ implementation {
         if (temp < min) {
           min = temp;
         }
-        sum += temp;
         if (!insert_busy) {
           atomic {
             //judge lose packet
@@ -351,8 +397,11 @@ implementation {
             insert_data = temp;
             index = (count - 1) >> 5;
             bit = (count - 1) & 31;
-            seq_set[index] |= ((uint32_t)1 << bit);
-            post b_insert();
+            if (!(seq_set[index] & ((uint32_t)1 << bit))) {
+              seq_set[index] |= ((uint32_t)1 << bit);
+              sum += temp;
+              post b_insert();
+            }
           }
         }
         ++count;
@@ -362,6 +411,9 @@ implementation {
   }
 
   task void sendRequest() {
+    if (stop) {
+      return;
+    }
     call Leds.led0Toggle();
     while ((call ReqAck.requestAck(&askPkt)) != SUCCESS) {
     }
@@ -373,6 +425,9 @@ implementation {
   }
 
   task void sendRequest2() {
+    if (stop) {
+      return;
+    }
     call Leds.led0Toggle();
     while ((call ReqAck.requestAck(&askPkt)) != SUCCESS) {
     }
@@ -408,6 +463,11 @@ implementation {
       atomic if (insert_data == UINT_MAX) {
         printf("CoReceiver 2 lose packet %u\n", pkt->sequence_number);
         printfflush();
+        re_ask = TRUE;
+        finish = FALSE;
+        stop = TRUE;
+        count = 0;
+        return msg;
       }
       index = (pkt->sequence_number - 1) >> 5;
       bit = (pkt->sequence_number - 1) & 31;
@@ -428,7 +488,7 @@ implementation {
         post b_insert();
       }
       else {
-        post sendRequest();
+        post sendRequest2();
         call Leds.led1Toggle();
       }
     }
@@ -443,9 +503,14 @@ implementation {
       insert_busy = TRUE;
       insert_data = pkt->random_integer;
       atomic if (insert_data == UINT_MAX) {
-        post sendRequest2();
         printf("CoReceiver 1 lose packet %u\n", pkt->sequence_number);
         printfflush();
+        /*re_ask = TRUE;
+        finish = FALSE;
+        stop = TRUE;
+        count = 0;
+        return msg;*/
+        post sendRequest2();
         return msg;
       }
       index = (pkt->sequence_number - 1) >> 5;

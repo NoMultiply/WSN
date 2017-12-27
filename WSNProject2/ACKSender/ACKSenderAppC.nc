@@ -1,5 +1,4 @@
 #include <Timer.h>
-#include "../msg.h"
 
 configuration ACKSenderAppC
 {
@@ -11,13 +10,14 @@ implementation {
   components new AMSenderC(AM_MSG);
   components new AMReceiverC(AM_MSG);
   components ActiveMessageC;
-  components SerialPrintfC;
+  components PrintfC;
+  components SerialStartC;
 
   ACKSenderC.Boot -> MainC;
   ACKSenderC.Leds -> LedsC;
   ACKSenderC.Packet -> AMSenderC;
   ACKSenderC.AMPacket -> AMSenderC;
   ACKSenderC.AMSend -> AMSenderC;
-  ACKSenderC.Control -> ActiveMessageC;
+  ACKSenderC.AMControl -> ActiveMessageC;
   ACKSenderC.Receive -> AMReceiverC;
 }

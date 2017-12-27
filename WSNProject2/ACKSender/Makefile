@@ -1,3 +1,3 @@
 COMPONENT=ACKSenderAppC
-CFLAGS+=-I$(TOSDIR)/lib/serialprintf
+CFLAGS += -I$(TOSDIR)/lib/printf
 include $(MAKERULES)

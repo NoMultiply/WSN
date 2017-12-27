@@ -10,7 +10,7 @@ implementation {
   components ActiveMessageC;
   components new AMSenderC(AM_CO) as CoSender;
   components new AMReceiverC(AM_CO) as CoreReceiver;
-  components new AMReceiverC(0) as RandomDataReceiver;
+  components new AMReceiverC(AM_SENDER) as RandomDataReceiver;
 
   App.Boot -> MainC;
   App.Leds -> LedsC;
